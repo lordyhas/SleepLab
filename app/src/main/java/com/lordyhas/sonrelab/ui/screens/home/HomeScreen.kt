@@ -1,9 +1,11 @@
 package com.lordyhas.sonrelab.ui.screens.home
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,7 +90,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val trackingState by viewModel.trackingState.collectAsState()
 
-    // Permissions launcher
+    // Permissions launcher — called only when permission is NOT yet granted
     val permissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -97,14 +99,26 @@ fun HomeScreen(
             viewModel.startTracking(context)
             onNavigateToTracking()
         }
+        // If denied, do nothing — user will see the button again
     }
 
     fun launchTrackingWithPermissionCheck() {
-        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        val audioAlreadyGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (audioAlreadyGranted) {
+            // Permission already granted — start immediately without a dialog
+            viewModel.startTracking(context)
+            onNavigateToTracking()
+        } else {
+            // Need to request permission first
+            val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            permissionsLauncher.launch(permissions.toTypedArray())
         }
-        permissionsLauncher.launch(permissions.toTypedArray())
     }
 
     Scaffold(

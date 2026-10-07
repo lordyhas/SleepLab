@@ -1,5 +1,11 @@
 package com.lordyhas.sonrelab.ui.screens.tracking
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import android.content.Context
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -78,6 +84,32 @@ fun TrackingScreen(
     val trackingState by viewModel.trackingState.collectAsState()
     val activeTreatments by viewModel.activeTreatments.collectAsState()
 
+    // Permission launcher — only triggered when RECORD_AUDIO not yet granted
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val audioGranted = permissions[Manifest.permission.RECORD_AUDIO] == true
+        if (audioGranted) {
+            viewModel.startTracking(context, activeTreatments.firstOrNull()?.id)
+        }
+    }
+
+    fun launchTrackingWithPermissionCheck() {
+        val audioAlreadyGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (audioAlreadyGranted) {
+            viewModel.startTracking(context, activeTreatments.firstOrNull()?.id)
+        } else {
+            val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            permissionLauncher.launch(permissions.toTypedArray())
+        }
+    }
+
     val currentTreatmentName = remember(trackingState.treatmentId, activeTreatments) {
         if (trackingState.treatmentId != null) {
             activeTreatments.find { it.id == trackingState.treatmentId }?.name ?: "Traitement actif"
@@ -121,8 +153,7 @@ fun TrackingScreen(
             } else {
                 InactiveTrackingContent(
                     onStart = {
-                        val firstActive = activeTreatments.firstOrNull()?.id
-                        viewModel.startTracking(context, firstActive)
+                        launchTrackingWithPermissionCheck()
                     }
                 )
             }
