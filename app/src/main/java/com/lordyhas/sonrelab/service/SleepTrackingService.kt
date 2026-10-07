@@ -7,11 +7,13 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.lordyhas.sonrelab.MainActivity
 import com.lordyhas.sonrelab.R
 import com.lordyhas.sonrelab.SonreLabApp
@@ -99,6 +101,15 @@ class SleepTrackingService : Service() {
 
     private fun startTracking(treatmentId: Int?, thresholdDb: Float) {
         if (_trackingState.value.isTracking) return
+
+        // Defensive guard: RECORD_AUDIO must be granted at runtime before starting
+        // a foreground service with type=microphone (Android 14+ requirement).
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            stopSelf()
+            return
+        }
 
         startTimeMillis = System.currentTimeMillis()
         currentTreatmentId = treatmentId
