@@ -48,6 +48,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.res.stringResource
+import com.lordyhas.sonrelab.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -110,11 +112,13 @@ fun TrackingScreen(
         }
     }
 
-    val currentTreatmentName = remember(trackingState.treatmentId, activeTreatments) {
+    val fallbackTreatment = stringResource(R.string.active_treatment)
+    val fallbackNoTreatment = stringResource(R.string.no_specific_treatment)
+    val currentTreatmentName = remember(trackingState.treatmentId, activeTreatments, fallbackTreatment, fallbackNoTreatment) {
         if (trackingState.treatmentId != null) {
-            activeTreatments.find { it.id == trackingState.treatmentId }?.name ?: "Traitement actif"
+            activeTreatments.find { it.id == trackingState.treatmentId }?.name ?: fallbackTreatment
         } else {
-            "Aucun traitement spécifique"
+            fallbackNoTreatment
         }
     }
 
@@ -123,7 +127,7 @@ fun TrackingScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Suivi du Sommeil",
+                        stringResource(R.string.sleep_tracking),
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -221,7 +225,7 @@ fun ActiveTrackingContent(
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "Enregistrement en cours",
+            text = stringResource(R.string.recording_in_progress),
             style = MaterialTheme.typography.bodySmall,
             color = SleepTealAccent
         )
@@ -260,7 +264,7 @@ fun ActiveTrackingContent(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "dB SPL",
+                    text = stringResource(R.string.db_spl),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -286,23 +290,23 @@ fun ActiveTrackingContent(
         ) {
             StatCard(
                 modifier = Modifier.weight(1f),
-                title = "Ronflements",
+                title = stringResource(R.string.snoring_title),
                 value = "${state.snoreCount}",
-                unit = "événements",
+                unit = stringResource(R.string.events),
                 iconColor = SleepIndigoPrimary
             )
             StatCard(
                 modifier = Modifier.weight(1f),
-                title = "Temps ronflé",
+                title = stringResource(R.string.snore_time),
                 value = "${state.totalSnoreSeconds / 60}m ${state.totalSnoreSeconds % 60}s",
-                unit = "durée cumulée",
+                unit = stringResource(R.string.cumulative_duration),
                 iconColor = SnoreMedium
             )
             StatCard(
                 modifier = Modifier.weight(1f),
-                title = "Pic sonore",
+                title = stringResource(R.string.sound_peak),
                 value = "${state.maxDb.toInt()}",
-                unit = "dB max",
+                unit = stringResource(R.string.db_max),
                 iconColor = SnoreHigh
             )
         }
@@ -328,7 +332,7 @@ fun ActiveTrackingContent(
             Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                "Arrêter et Enregistrer",
+                stringResource(R.string.stop_and_save),
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
@@ -450,7 +454,7 @@ fun InactiveTrackingContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Aucun enregistrement en cours",
+            text = stringResource(R.string.no_recording),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
@@ -458,7 +462,7 @@ fun InactiveTrackingContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Posez votre téléphone sur votre table de nuit et lancez le suivi avant de dormir.",
+            text = stringResource(R.string.place_phone_instruction),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -479,7 +483,7 @@ fun InactiveTrackingContent(
         ) {
             Icon(Icons.Default.PlayArrow, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Lancer le suivi de nuit", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(stringResource(R.string.start_night_tracking), fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
