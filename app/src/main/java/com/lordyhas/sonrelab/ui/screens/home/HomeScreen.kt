@@ -51,6 +51,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.res.stringResource
+import com.lordyhas.sonrelab.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -142,7 +144,7 @@ fun HomeScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            "SnoreTracker",
+                            "SleepLab",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
@@ -248,7 +250,7 @@ fun HeroStartSleepCard(
                     val timerStr = String.format("%02d:%02d:%02d", hours, minutes, seconds)
 
                     Text(
-                        "Suivi du sommeil actif",
+                        stringResource(R.string.active_sleep_tracking),
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -271,7 +273,7 @@ fun HeroStartSleepCard(
                     ) {
                         Icon(Icons.Default.GraphicEq, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Voir le direct & Arrêter", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.view_live_stop), fontWeight = FontWeight.Bold)
                     }
                 } else {
                     Box(
@@ -292,13 +294,13 @@ fun HeroStartSleepCard(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        "Prêt pour une bonne nuit ?",
+                        stringResource(R.string.ready_for_good_night),
                         style = MaterialTheme.typography.titleLarge,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Enregistrez vos ronflements et évaluez vos traitements",
+                        stringResource(R.string.record_evaluate_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.8f)
                     )
@@ -318,7 +320,7 @@ fun HeroStartSleepCard(
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Démarrer le sommeil", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(stringResource(R.string.start_sleep), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
@@ -341,13 +343,13 @@ fun TreatmentSelectorSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Traitement appliqué cette nuit :",
+                stringResource(R.string.treatment_applied_tonight),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                "Gérer",
+                stringResource(R.string.manage),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
@@ -364,7 +366,7 @@ fun TreatmentSelectorSection(
                 FilterChip(
                     selected = selectedId == null,
                     onClick = { onSelect(null) },
-                    label = { Text("Sans traitement") },
+                    label = { Text(stringResource(R.string.no_treatment)) },
                     leadingIcon = if (selectedId == null) {
                         { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     } else null
@@ -408,7 +410,7 @@ fun LastNightSummaryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Dernière Nuit",
+                    stringResource(R.string.last_night),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -425,7 +427,7 @@ fun LastNightSummaryCard(
 
             if (latestSession == null) {
                 Text(
-                    "Aucune nuit enregistrée pour le moment. Lancez votre premier suivi pour voir vos résultats !",
+                    stringResource(R.string.no_night_recorded),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -443,21 +445,21 @@ fun LastNightSummaryCard(
                 ) {
                     SummaryMetric(
                         modifier = Modifier.weight(1f),
-                        title = "Sommeil",
+                        title = stringResource(R.string.sleep_title),
                         value = "${sleepHours}h ${sleepMinutes}m",
                         icon = Icons.Default.Timer,
                         tint = SleepIndigoLight
                     )
                     SummaryMetric(
                         modifier = Modifier.weight(1f),
-                        title = "Ronflements",
+                        title = stringResource(R.string.snoring_title),
                         value = "${snoreMinutes}m ${snoreSeconds}s",
                         icon = Icons.Default.GraphicEq,
                         tint = SnoreMedium
                     )
                     SummaryMetric(
                         modifier = Modifier.weight(1f),
-                        title = "Score dB",
+                        title = stringResource(R.string.db_score),
                         value = "${latestSession.snoreIntensityScore.toInt()} / 100",
                         icon = Icons.Default.Speed,
                         tint = if (latestSession.snoreIntensityScore > 55) SnoreHigh else SnoreLow
@@ -536,7 +538,7 @@ fun QuickStatsSection(
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
-                    "Total Nuits Suivies",
+                    stringResource(R.string.total_tracked_nights),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -557,7 +559,7 @@ fun QuickStatsSection(
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
-                    "Moyenne Ronflements",
+                    stringResource(R.string.avg_snoring),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
