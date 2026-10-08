@@ -44,6 +44,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.res.stringResource
+import com.lordyhas.sonrelab.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,7 +79,7 @@ fun TreatmentsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Traitements & Réglages",
+                        stringResource(R.string.treatments_and_settings),
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -92,7 +94,7 @@ fun TreatmentsScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Ajouter un traitement")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_treatment_desc))
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -120,7 +122,7 @@ fun TreatmentsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Vos Traitements Médicaux",
+                        text = stringResource(R.string.your_medical_treatments),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -201,12 +203,12 @@ fun CalibrationCard(
                 }
                 Column {
                     Text(
-                        "Sensibilité du Microphone",
+                        stringResource(R.string.mic_sensitivity),
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
-                        "Seuil de déclenchement des ronflements",
+                        stringResource(R.string.snore_trigger_threshold),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -228,9 +230,9 @@ fun CalibrationCard(
                 )
                 Text(
                     text = when {
-                        thresholdDb < 45f -> "Très sensible (chambre calme)"
-                        thresholdDb < 60f -> "Recommandé (normal)"
-                        else -> "Ronflements forts uniquement"
+                        thresholdDb < 45f -> stringResource(R.string.very_sensitive)
+                        thresholdDb < 60f -> stringResource(R.string.recommended_normal)
+                        else -> stringResource(R.string.loud_snoring_only)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -335,7 +337,7 @@ fun TreatmentItemCard(
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "Supprimer",
+                        contentDescription = stringResource(R.string.delete),
                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                     )
                 }
@@ -367,13 +369,13 @@ fun EmptyTreatmentsCard(onAddClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                "Aucun traitement enregistré",
+                stringResource(R.string.no_saved_treatment),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Ajoutez vos traitements (orthèse, spray, oreiller...) pour mesurer leur impact réel sur vos ronflements.",
+                stringResource(R.string.add_treatment_instruction),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -382,7 +384,7 @@ fun EmptyTreatmentsCard(onAddClick: () -> Unit) {
             OutlinedButton(onClick = onAddClick) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Ajouter un premier traitement")
+                Text(stringResource(R.string.add_first_treatment))
             }
         }
     }
@@ -395,22 +397,22 @@ fun AddTreatmentDialog(
 ) {
     var text by remember { mutableStateOf("") }
     val presets = listOf(
-        "Orthèse d'avancée mandibulaire",
-        "Gouttes / Spray nasal",
-        "Bandelettes nasales",
-        "Oreiller anti-ronflement",
-        "PPC (Pression Positive Continue)"
+        stringResource(R.string.treatment_orthosis),
+        stringResource(R.string.treatment_drops),
+        stringResource(R.string.treatment_strips),
+        stringResource(R.string.treatment_pillow),
+        stringResource(R.string.treatment_cpap)
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Nouveau Traitement", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.new_treatment), fontWeight = FontWeight.Bold)
         },
         text = {
             Column {
                 Text(
-                    "Entrez le nom ou choisissez une suggestion :",
+                    stringResource(R.string.enter_name_or_suggestion),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -419,7 +421,7 @@ fun AddTreatmentDialog(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("Nom du traitement") },
+                    label = { Text(stringResource(R.string.treatment_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -427,7 +429,7 @@ fun AddTreatmentDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    "Suggestions courantes :",
+                    stringResource(R.string.common_suggestions),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -455,12 +457,12 @@ fun AddTreatmentDialog(
                 },
                 enabled = text.isNotBlank()
             ) {
-                Text("Enregistrer")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Annuler")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

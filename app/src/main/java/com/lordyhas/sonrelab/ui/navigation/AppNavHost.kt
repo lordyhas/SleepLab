@@ -1,6 +1,7 @@
 package com.lordyhas.sonrelab.ui.navigation
 
 import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
@@ -77,21 +78,21 @@ fun AppNavHost(
                                 ) {
                                     Icon(
                                         screen.icon,
-                                        contentDescription = screen.title,
+                                        contentDescription = stringResource(screen.titleResId),
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
                             } else {
                                 Icon(
                                     screen.icon,
-                                    contentDescription = screen.title,
+                                    contentDescription = stringResource(screen.titleResId),
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
                         },
                         label = {
                             Text(
-                                screen.title,
+                                stringResource(screen.titleResId),
                                 fontSize = 11.sp,
                                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )

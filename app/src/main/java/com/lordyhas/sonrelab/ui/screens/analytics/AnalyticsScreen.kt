@@ -35,6 +35,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.res.stringResource
+import com.lordyhas.sonrelab.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,7 +76,7 @@ fun AnalyticsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Analyses & Efficacité",
+                        stringResource(R.string.analytics_and_efficiency),
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -116,7 +118,7 @@ fun AnalyticsScreen(
                 // Per-treatment breakdown
                 item {
                     Text(
-                        "Détail par Traitement",
+                        stringResource(R.string.detail_by_treatment),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -130,7 +132,7 @@ fun AnalyticsScreen(
                 item {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        "Historique des Nuits",
+                        stringResource(R.string.nights_history),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -186,12 +188,12 @@ fun TreatmentImpactHeroCard(
                 }
                 Column {
                     Text(
-                        "Impact Médical des Traitements",
+                        stringResource(R.string.medical_impact),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
-                        if (isPositive) "Réduction observée des ronflements" else "Données en cours de stabilisation",
+                        if (isPositive) stringResource(R.string.observed_reduction) else stringResource(R.string.data_stabilizing),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -213,7 +215,7 @@ fun TreatmentImpactHeroCard(
                         color = if (isPositive) SleepTealAccent else SnoreMedium
                     )
                     Text(
-                        text = if (isPositive) "de temps de ronflement" else "variation",
+                        text = if (isPositive) stringResource(R.string.snore_time_variation) else stringResource(R.string.variation),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -255,7 +257,7 @@ fun SnoreEvolutionChartCard(
                 .padding(18.dp)
         ) {
             Text(
-                "Évolution des Ronflements (Minutes / Nuit)",
+                stringResource(R.string.snoring_evolution),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleSmall
             )
@@ -273,7 +275,7 @@ fun SnoreEvolutionChartCard(
                             .background(SleepIndigoPrimary)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Sans traitement", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.no_treatment), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -283,7 +285,7 @@ fun SnoreEvolutionChartCard(
                             .background(SleepTealAccent)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Avec traitement", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.with_treatment), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -434,7 +436,7 @@ fun SessionHistoryCard(item: SessionWithTreatment) {
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (item.treatmentName != null) "🔬 ${item.treatmentName}" else "Sans traitement",
+                    text = if (item.treatmentName != null) "🔬 ${item.treatmentName}" else stringResource(R.string.no_treatment),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (item.treatmentName != null) SleepTealAccent else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -478,13 +480,13 @@ fun EmptyAnalyticsCard() {
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                "Données insuffisantes",
+                stringResource(R.string.insufficient_data),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Enregistrez vos premières nuits pour débloquer les graphiques d'évolution et l'analyse comparative de vos traitements.",
+                stringResource(R.string.record_first_nights_unlock),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
