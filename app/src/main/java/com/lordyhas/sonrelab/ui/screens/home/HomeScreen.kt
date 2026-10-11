@@ -86,7 +86,8 @@ import java.util.Locale
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onNavigateToTracking: () -> Unit = {},
-    onNavigateToTreatments: () -> Unit = {}
+    onNavigateToTreatments: () -> Unit = {},
+    onNavigateToSessionDetail: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -190,7 +191,10 @@ fun HomeScreen(
             item {
                 LastNightSummaryCard(
                     latestSession = uiState.latestSession,
-                    treatment = uiState.latestSessionTreatment
+                    treatment = uiState.latestSessionTreatment,
+                    onClick = { 
+                        uiState.latestSession?.id?.let { onNavigateToSessionDetail(it) } 
+                    }
                 )
             }
 
@@ -390,12 +394,15 @@ fun TreatmentSelectorSection(
 @Composable
 fun LastNightSummaryCard(
     latestSession: SleepSessionEntity?,
-    treatment: TreatmentEntity?
+    treatment: TreatmentEntity?,
+    onClick: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { if (latestSession != null) onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
     ) {

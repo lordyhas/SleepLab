@@ -34,6 +34,10 @@ import com.lordyhas.sonrelab.ui.screens.tracking.TrackingScreen
 import com.lordyhas.sonrelab.ui.screens.treatments.TreatmentsScreen
 import com.lordyhas.sonrelab.ui.theme.SleepTealAccent
 
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.lordyhas.sonrelab.ui.screens.sessiondetail.SessionDetailScreen
+
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController()
@@ -55,7 +59,8 @@ fun AppNavHost(
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 items.forEach { screen ->
-                    val selected = currentRoute == screen.route
+                    val selected = currentRoute == screen.route || 
+                                   (screen == Screen.Analytics && currentRoute?.startsWith("session_detail") == true)
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
@@ -130,6 +135,9 @@ fun AppNavHost(
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onNavigateToSessionDetail = { sessionId ->
+                        navController.navigate(Screen.SessionDetail.createRoute(sessionId))
                     }
                 )
             }
@@ -143,11 +151,26 @@ fun AppNavHost(
             }
 
             composable(Screen.Analytics.route) {
-                AnalyticsScreen()
+                AnalyticsScreen(
+                    onNavigateToSessionDetail = { sessionId ->
+                        navController.navigate(Screen.SessionDetail.createRoute(sessionId))
+                    }
+                )
             }
 
             composable(Screen.Treatments.route) {
                 TreatmentsScreen()
+            }
+
+            composable(
+                route = Screen.SessionDetail.route,
+                arguments = listOf(navArgument("sessionId") { type = NavType.IntType })
+            ) { backStackEntry ->
+                val sessionId = backStackEntry.arguments?.getInt("sessionId") ?: return@composable
+                SessionDetailScreen(
+                    sessionId = sessionId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
         }
     }

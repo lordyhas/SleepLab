@@ -34,6 +34,7 @@ class SleepTrackingService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var timerJob: Job? = null
+    private var noiseSamplingJob: Job? = null
     private var audioAnalyzer: AudioAnalyzer? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -170,8 +171,25 @@ class SleepTrackingService : Service() {
                 }
             ).also { it.start() }
 
+            startNoiseSampling(sessionId)
+
             // Timer for elapsed seconds
             startElapsedTimer()
+        }
+    }
+
+    private fun startNoiseSampling(sessionId: Int) {
+        noiseSamplingJob?.cancel()
+        noiseSamplingJob = serviceScope.launch(Dispatchers.IO) {
+            val app = SonreLabApp.instance
+            while (isActive) {
+                delay(10_000L) // 10 seconds
+                val currentDb = _trackingState.value.currentDb
+                app.noiseSampleRepository.recordSample(
+                    sessionId = sessionId,
+                    decibelLevel = currentDb
+                )
+            }
         }
     }
 
@@ -222,6 +240,8 @@ class SleepTrackingService : Service() {
         val totalSnoreSeconds = _trackingState.value.totalSnoreSeconds
         val maxDb = _trackingState.value.maxDb
 
+        noiseSamplingJob?.cancel()
+        noiseSamplingJob = null
         audioAnalyzer?.stop()
         audioAnalyzer = null
         timerJob?.cancel()
@@ -340,6 +360,7 @@ class SleepTrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        noiseSamplingJob?.cancel()
         audioAnalyzer?.stop()
         audioAnalyzer = null
         timerJob?.cancel()
