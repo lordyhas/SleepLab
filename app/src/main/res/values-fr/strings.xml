@@ -1,6 +1,6 @@
 <resources>
     <!-- Les traductions en français (Canada) de votre application iront ici -->
-    <string name="app_name">SonreLab</string>
+    <string name="app_name">SleepLab</string>
     <string name="screen_home">Accueil</string>
     <string name="screen_tracking">Enregistrement</string>
     <string name="screen_analytics">Statistiques</string>
