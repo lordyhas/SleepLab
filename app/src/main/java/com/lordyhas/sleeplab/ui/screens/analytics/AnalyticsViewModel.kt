@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.ui.screens.analytics
+package com.lordyhas.sleeplab.ui.screens.analytics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,7 +19,7 @@ data class SessionWithTreatment(
 
 data class TreatmentImpact(
     val treatmentId: Int?,
-    val treatmentName: String,
+    val treatmentName: String?, // null = nights without treatment (baseline)
     val sessionCount: Int,
     val averageSnoreMinutes: Float,
     val averageIntensityScore: Float,
@@ -31,7 +31,9 @@ data class AnalyticsUiState(
     val treatmentImpacts: List<TreatmentImpact> = emptyList(),
     val overallImprovementPercentage: Float? = null,
     val averageSnoreWithoutTreatmentMinutes: Float = 0f,
-    val averageSnoreWithTreatmentMinutes: Float = 0f
+    val averageSnoreWithTreatmentMinutes: Float = 0f,
+    val averageSnoreMinutes: Float = 0f,
+    val averageSleepSeconds: Long = 0L
 )
 
 class AnalyticsViewModel(
@@ -78,7 +80,7 @@ class AnalyticsViewModel(
             impacts.add(
                 TreatmentImpact(
                     treatmentId = null,
-                    treatmentName = "Sans traitement",
+                    treatmentName = null,
                     sessionCount = noTreatmentSessions.size,
                     averageSnoreMinutes = avgNoTreatmentMinutes,
                     averageIntensityScore = noTreatmentSessions.map { it.snoreIntensityScore }.average().toFloat(),
@@ -89,7 +91,7 @@ class AnalyticsViewModel(
 
         val groupedByTreatment = withTreatmentSessions.groupBy { it.treatmentId }
         groupedByTreatment.forEach { (tid, group) ->
-            val tName = treatmentMap[tid]?.name ?: "Traitement #$tid"
+            val tName = treatmentMap[tid]?.name ?: "#$tid"
             val avgMin = group.map { it.totalSnoreDurationSeconds / 60f }.average().toFloat()
             val avgScore = group.map { it.snoreIntensityScore }.average().toFloat()
             val reduction = if (avgNoTreatmentMinutes > 0f) {
@@ -113,7 +115,11 @@ class AnalyticsViewModel(
             treatmentImpacts = impacts,
             overallImprovementPercentage = overallImprovement,
             averageSnoreWithoutTreatmentMinutes = avgNoTreatmentMinutes,
-            averageSnoreWithTreatmentMinutes = avgWithTreatmentMinutes
+            averageSnoreWithTreatmentMinutes = avgWithTreatmentMinutes,
+            averageSnoreMinutes = completedSessions.map { it.totalSnoreDurationSeconds / 60f }
+                .average().toFloat().takeIf { !it.isNaN() } ?: 0f,
+            averageSleepSeconds = completedSessions.map { (it.endTime - it.startTime) / 1000 }
+                .average().takeIf { !it.isNaN() }?.toLong() ?: 0L
         )
     }.stateIn(
         scope = viewModelScope,

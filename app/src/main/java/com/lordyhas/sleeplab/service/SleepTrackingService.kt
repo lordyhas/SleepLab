@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import com.lordyhas.sleeplab.MainActivity
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.SleepLabApp
+import com.lordyhas.sleeplab.ui.util.formatClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -278,10 +279,10 @@ class SleepTrackingService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Suivi du Sommeil et Ronflements",
+                getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Notification persistante pour l'analyse audio en temps réel"
+                description = getString(R.string.notif_channel_desc)
                 setShowBadge(false)
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -290,10 +291,7 @@ class SleepTrackingService : Service() {
     }
 
     private fun buildNotification(elapsedSeconds: Long, snoreCount: Int): Notification {
-        val hours = elapsedSeconds / 3600
-        val minutes = (elapsedSeconds % 3600) / 60
-        val seconds = elapsedSeconds % 60
-        val timeString = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        val timeString = formatClock(elapsedSeconds)
 
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -316,12 +314,12 @@ class SleepTrackingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Suivi du sommeil en cours")
-            .setContentText("Durée : $timeString | Ronflements : $snoreCount")
+            .setContentTitle(getString(R.string.notif_title))
+            .setContentText(getString(R.string.notif_text, timeString, snoreCount))
             .setSmallIcon(R.drawable.ic_night_recording)
             .setOngoing(true)
             .setContentIntent(pendingOpenIntent)
-            .addAction(android.R.drawable.ic_media_pause, "Arrêter", pendingStopIntent)
+            .addAction(android.R.drawable.ic_media_pause, getString(R.string.notif_stop), pendingStopIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()

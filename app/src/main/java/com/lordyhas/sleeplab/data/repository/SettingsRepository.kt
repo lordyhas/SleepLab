@@ -1,0 +1,57 @@
+package com.lordyhas.sleeplab.data.repository
+
+import android.content.Context
+import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Small persisted user preferences (SharedPreferences-backed) exposed as StateFlows.
+ */
+class SettingsRepository(context: Context) {
+
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val _thresholdDb = MutableStateFlow(prefs.getFloat(KEY_THRESHOLD_DB, DEFAULT_THRESHOLD_DB))
+    /** Sound level (dB) above which audio counts as snoring. */
+    val thresholdDb: StateFlow<Float> = _thresholdDb.asStateFlow()
+
+    private val _treatmentChoice = MutableStateFlow(prefs.getInt(KEY_TREATMENT_CHOICE, CHOICE_UNSET))
+    /**
+     * The treatment the user picked for tonight: a treatment id, [CHOICE_NONE] for an explicit
+     * "no treatment", or [CHOICE_UNSET] when they never picked. Use [resolveTreatmentId].
+     */
+    val treatmentChoice: StateFlow<Int> = _treatmentChoice.asStateFlow()
+
+    fun setThresholdDb(value: Float) {
+        _thresholdDb.value = value
+        prefs.edit().putFloat(KEY_THRESHOLD_DB, value).apply()
+    }
+
+    fun setTreatmentChoice(treatmentId: Int?) {
+        val choice = treatmentId ?: CHOICE_NONE
+        _treatmentChoice.value = choice
+        prefs.edit().putInt(KEY_TREATMENT_CHOICE, choice).apply()
+    }
+
+    companion object {
+        const val DEFAULT_THRESHOLD_DB = 50f
+        const val CHOICE_UNSET = -2
+        const val CHOICE_NONE = -1
+
+        private const val PREFS_NAME = "sleeplab_settings"
+        private const val KEY_THRESHOLD_DB = "threshold_db"
+        private const val KEY_TREATMENT_CHOICE = "treatment_choice"
+
+        /**
+         * Turns a stored choice into the treatment id to record with, falling back to the first
+         * active treatment when nothing was picked or the picked one is no longer active.
+         */
+        fun resolveTreatmentId(choice: Int, activeTreatments: List<TreatmentEntity>): Int? = when (choice) {
+            CHOICE_NONE -> null
+            else -> activeTreatments.firstOrNull { it.id == choice }?.id
+                ?: activeTreatments.firstOrNull()?.id
+        }
+    }
+}

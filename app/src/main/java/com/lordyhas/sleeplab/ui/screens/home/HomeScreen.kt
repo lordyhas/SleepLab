@@ -1,58 +1,52 @@
-﻿package com.lordyhas.sleeplab.ui.screens.home
+package com.lordyhas.sleeplab.ui.screens.home
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.res.stringResource
-import com.lordyhas.sleeplab.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,28 +54,40 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
-import com.lordyhas.sleeplab.ui.theme.MidnightSurfaceCard
+import com.lordyhas.sleeplab.ui.components.GaugeRing
+import com.lordyhas.sleeplab.ui.components.GlassCard
+import com.lordyhas.sleeplab.ui.components.MetricTile
+import com.lordyhas.sleeplab.ui.components.Pill
+import com.lordyhas.sleeplab.ui.components.ScreenHeader
+import com.lordyhas.sleeplab.ui.components.SectionHeader
+import com.lordyhas.sleeplab.ui.components.rememberMicPermissionGate
+import com.lordyhas.sleeplab.ui.theme.MoonGlow
 import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
-import com.lordyhas.sleeplab.ui.theme.SleepIndigoPrimary
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
-import com.lordyhas.sleeplab.ui.theme.SnoreHigh
 import com.lordyhas.sleeplab.ui.theme.SnoreLow
 import com.lordyhas.sleeplab.ui.theme.SnoreMedium
+import com.lordyhas.sleeplab.ui.theme.snoreLevelColor
+import com.lordyhas.sleeplab.ui.util.formatClock
+import com.lordyhas.sleeplab.ui.util.formatDuration
+import com.lordyhas.sleeplab.ui.util.sessionDurationSeconds
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
@@ -93,238 +99,204 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val trackingState by viewModel.trackingState.collectAsState()
 
-    // Permissions launcher — called only when permission is NOT yet granted
-    val permissionsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val recordAudioGranted = permissions[Manifest.permission.RECORD_AUDIO] == true
-        if (recordAudioGranted) {
-            viewModel.startTracking(context)
-            onNavigateToTracking()
-        }
-        // If denied, do nothing — user will see the button again
+    val startTracking = rememberMicPermissionGate {
+        viewModel.startTracking(context)
+        onNavigateToTracking()
     }
 
-    fun launchTrackingWithPermissionCheck() {
-        val audioAlreadyGranted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
+    val todayFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-        if (audioAlreadyGranted) {
-            // Permission already granted — start immediately without a dialog
-            viewModel.startTracking(context)
-            onNavigateToTracking()
-        } else {
-            // Need to request permission first
-            val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            permissionsLauncher.launch(permissions.toTypedArray())
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(SleepIndigoPrimary.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Nightlight,
-                                contentDescription = null,
-                                tint = SleepIndigoLight,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            "SleepLab",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarTop + 12.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        item {
+            ScreenHeader(
+                title = stringResource(greetingRes()),
+                overline = todayFormat.format(Date())
             )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            // Hero Start Sleep Card
-            item {
-                HeroStartSleepCard(
-                    isTracking = trackingState.isTracking,
-                    elapsedSeconds = trackingState.elapsedSeconds,
-                    onStartClick = {
-                        launchTrackingWithPermissionCheck()
-                    },
-                    onViewLiveClick = onNavigateToTracking
-                )
-            }
+        }
 
-            // Treatment Selector for tonight
+        item {
+            HeroCard(
+                isTracking = trackingState.isTracking,
+                elapsedSeconds = trackingState.elapsedSeconds,
+                snoreCount = trackingState.snoreCount,
+                onStartClick = startTracking,
+                onViewLiveClick = onNavigateToTracking
+            )
+        }
+
+        if (!trackingState.isTracking) {
             item {
                 TreatmentSelectorSection(
                     activeTreatments = uiState.activeTreatments,
                     selectedId = uiState.selectedTreatmentId,
-                    onSelect = { viewModel.selectTreatment(it) },
+                    onSelect = viewModel::selectTreatment,
                     onManageClick = onNavigateToTreatments
                 )
             }
+        }
 
-            // Last Night Summary Card
-            item {
-                LastNightSummaryCard(
-                    latestSession = uiState.latestSession,
-                    treatment = uiState.latestSessionTreatment,
-                    onClick = { 
-                        uiState.latestSession?.id?.let { onNavigateToSessionDetail(it) } 
-                    }
-                )
-            }
+        item {
+            LastNightCard(
+                latestSession = uiState.latestSession,
+                treatment = uiState.latestSessionTreatment,
+                onClick = { uiState.latestSession?.id?.let(onNavigateToSessionDetail) }
+            )
+        }
 
-            // Quick Stats Overview
+        if (uiState.totalSessionsCount > 0) {
             item {
-                QuickStatsSection(
-                    totalSessions = uiState.totalSessionsCount,
-                    avgSnoreMinutes = uiState.averageSnoreDurationMinutes
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(60.dp))
+                SectionHeader(stringResource(R.string.overview))
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.nights_tracked),
+                        value = "${uiState.totalSessionsCount}",
+                        icon = Icons.Default.NightsStay,
+                        tint = SleepIndigoLight
+                    )
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.avg_per_night),
+                        value = stringResource(R.string.minutes_value, uiState.averageSnoreDurationMinutes),
+                        icon = Icons.Default.GraphicEq,
+                        tint = SnoreMedium
+                    )
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.best_night),
+                        value = stringResource(R.string.minutes_value, uiState.bestNightSnoreMinutes ?: 0),
+                        icon = Icons.Default.EmojiEvents,
+                        tint = SnoreLow
+                    )
+                }
             }
         }
     }
 }
 
+private fun greetingRes(): Int = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+    in 5..11 -> R.string.greeting_morning
+    in 12..17 -> R.string.greeting_afternoon
+    in 18..21 -> R.string.greeting_evening
+    else -> R.string.greeting_night
+}
+
 @Composable
-fun HeroStartSleepCard(
+private fun HeroCard(
     isTracking: Boolean,
     elapsedSeconds: Long,
+    snoreCount: Int,
     onStartClick: () -> Unit,
     onViewLiveClick: () -> Unit
 ) {
+    val shape = MaterialTheme.shapes.extraLarge
     val gradient = if (isTracking) {
-        Brush.linearGradient(
-            listOf(Color(0xFF065F46), Color(0xFF047857))
-        )
+        Brush.linearGradient(listOf(Color(0xFF0F3D3A), Color(0xFF0B1F2E)))
     } else {
-        Brush.linearGradient(
-            listOf(Color(0xFF3730A3), Color(0xFF1E1B4B))
-        )
+        Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF151541)))
     }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+            .clip(shape)
+            .background(gradient)
+            .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
+            .drawBehind {
+                // Moon glow in the corner
+                val center = Offset(size.width * 0.88f, size.height * 0.12f)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf((if (isTracking) SleepTealAccent else MoonGlow).copy(alpha = 0.25f), Color.Transparent),
+                        center = center,
+                        radius = size.minDimension * 0.6f
+                    ),
+                    radius = size.minDimension * 0.6f,
+                    center = center
+                )
+            }
+            .padding(24.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(gradient)
-                .padding(24.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (isTracking) {
-                    val hours = elapsedSeconds / 3600
-                    val minutes = (elapsedSeconds % 3600) / 60
-                    val seconds = elapsedSeconds % 60
-                    val timerStr = String.format("%02d:%02d:%02d", hours, minutes, seconds)
-
+        AnimatedContent(
+            targetState = isTracking,
+            transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
+            label = "heroContent"
+        ) { tracking ->
+            if (tracking) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    LiveIndicator(text = stringResource(R.string.active_sleep_tracking))
+                    Spacer(Modifier.height(14.dp))
                     Text(
-                        stringResource(R.string.active_sleep_tracking),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        formatClock(elapsedSeconds),
+                        style = MaterialTheme.typography.displayMedium,
+                        color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        timerStr,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SleepTealAccent
+                        "$snoreCount ${stringResource(R.string.events)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.7f)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(Modifier.height(20.dp))
                     Button(
                         onClick = onViewLiveClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF065F46)
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(Icons.Default.GraphicEq, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.view_live_stop), fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Bedtime,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(38.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        stringResource(R.string.ready_for_good_night),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        stringResource(R.string.record_evaluate_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    Button(
-                        onClick = onStartClick,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
                         colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFF0F3D3A)
+                        ),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.view_live_stop))
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Icon(
+                        Icons.Default.Bedtime,
+                        contentDescription = null,
+                        tint = MoonGlow,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        stringResource(R.string.ready_for_good_night),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.record_evaluate_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.72f)
+                    )
+                    Spacer(Modifier.height(22.dp))
+                    Button(
+                        onClick = onStartClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
                             containerColor = SleepTealAccent,
                             contentColor = Color(0xFF042F2E)
                         ),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = MaterialTheme.shapes.medium
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.start_sleep), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.start_sleep), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -332,59 +304,53 @@ fun HeroStartSleepCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TreatmentSelectorSection(
+private fun LiveIndicator(text: String) {
+    val transition = rememberInfiniteTransition(label = "live")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "liveAlpha"
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(SleepTealAccent.copy(alpha = alpha))
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, color = SleepTealAccent)
+    }
+}
+
+@Composable
+private fun TreatmentSelectorSection(
     activeTreatments: List<TreatmentEntity>,
     selectedId: Int?,
     onSelect: (Int?) -> Unit,
     onManageClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                stringResource(R.string.treatment_applied_tonight),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                stringResource(R.string.manage),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable { onManageClick() }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        SectionHeader(
+            title = stringResource(R.string.tonight_treatment),
+            actionLabel = stringResource(R.string.manage),
+            onAction = onManageClick
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
-                FilterChip(
+                TreatmentChip(
+                    label = stringResource(R.string.no_treatment),
                     selected = selectedId == null,
-                    onClick = { onSelect(null) },
-                    label = { Text(stringResource(R.string.no_treatment)) },
-                    leadingIcon = if (selectedId == null) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    } else null
+                    onClick = { onSelect(null) }
                 )
             }
-
             items(activeTreatments, key = { it.id }) { treatment ->
-                FilterChip(
+                TreatmentChip(
+                    label = treatment.name,
                     selected = selectedId == treatment.id,
-                    onClick = { onSelect(treatment.id) },
-                    label = { Text(treatment.name) },
-                    leadingIcon = if (selectedId == treatment.id) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    } else null
+                    onClick = { onSelect(treatment.id) }
                 )
             }
         }
@@ -392,192 +358,162 @@ fun TreatmentSelectorSection(
 }
 
 @Composable
-fun LastNightSummaryCard(
+private fun TreatmentChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = if (selected) {
+            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+        } else null,
+        shape = CircleShape,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = Color.White.copy(alpha = 0.04f),
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = Color.White.copy(alpha = 0.1f),
+            selectedBorderColor = Color.Transparent
+        )
+    )
+}
+
+@Composable
+private fun LastNightCard(
     latestSession: SleepSessionEntity?,
     treatment: TreatmentEntity?,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("EEE d MMM", Locale.getDefault()) }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { if (latestSession != null) onClick() },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = if (latestSession != null) onClick else null
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Text(
+                stringResource(R.string.last_night),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            if (latestSession != null) {
                 Text(
-                    stringResource(R.string.last_night),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    dateFormat.format(Date(latestSession.startTime)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (latestSession != null) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = stringResource(R.string.see_details),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        if (latestSession == null) {
+            Text(
+                stringResource(R.string.no_night_recorded),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@GlassCard
+        }
+
+        val score = latestSession.snoreIntensityScore
+        val levelColor = snoreLevelColor(score)
+        val levelLabel = stringResource(
+            when {
+                score < 45f -> R.string.night_quiet
+                score < 60f -> R.string.night_moderate
+                else -> R.string.night_loud
+            }
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GaugeRing(
+                progress = score / 100f,
+                color = levelColor,
+                strokeWidth = 9.dp,
+                animationMillis = 900,
+                modifier = Modifier.size(112.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        dateFormat.format(Date(latestSession.startTime)),
-                        style = MaterialTheme.typography.bodySmall,
+                        "${score.toInt()}",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        stringResource(R.string.intensity_label),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(Modifier.width(18.dp))
 
-            if (latestSession == null) {
-                Text(
-                    stringResource(R.string.no_night_recorded),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill(text = levelLabel, color = levelColor)
+                LabeledValue(
+                    icon = Icons.Default.Schedule,
+                    tint = SleepIndigoLight,
+                    label = stringResource(R.string.time_in_bed),
+                    value = formatDuration(sessionDurationSeconds(latestSession.startTime, latestSession.endTime))
                 )
-            } else {
-                val totalSleepSeconds = ((latestSession.endTime - latestSession.startTime) / 1000).coerceAtLeast(0)
-                val sleepHours = totalSleepSeconds / 3600
-                val sleepMinutes = (totalSleepSeconds % 3600) / 60
-
-                val snoreMinutes = latestSession.totalSnoreDurationSeconds / 60
-                val snoreSeconds = latestSession.totalSnoreDurationSeconds % 60
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    SummaryMetric(
-                        modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.sleep_title),
-                        value = "${sleepHours}h ${sleepMinutes}m",
-                        icon = Icons.Default.Timer,
-                        tint = SleepIndigoLight
-                    )
-                    SummaryMetric(
-                        modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.snoring_title),
-                        value = "${snoreMinutes}m ${snoreSeconds}s",
-                        icon = Icons.Default.GraphicEq,
-                        tint = SnoreMedium
-                    )
-                    SummaryMetric(
-                        modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.db_score),
-                        value = "${latestSession.snoreIntensityScore.toInt()} / 100",
-                        icon = Icons.Default.Speed,
-                        tint = if (latestSession.snoreIntensityScore > 55) SnoreHigh else SnoreLow
-                    )
-                }
-
-                if (treatment != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "Traitement associé : ${treatment.name}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+                LabeledValue(
+                    icon = Icons.Default.GraphicEq,
+                    tint = SnoreMedium,
+                    label = stringResource(R.string.snoring_title),
+                    value = formatDuration(latestSession.totalSnoreDurationSeconds.toLong())
+                )
             }
         }
-    }
-}
 
-@Composable
-fun SummaryMetric(
-    modifier: Modifier = Modifier,
-    title: String,
-    value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-            .padding(10.dp)
-    ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    title,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                value,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
+        if (treatment != null) {
+            Spacer(Modifier.height(16.dp))
+            Pill(
+                text = treatment.name,
+                color = SleepIndigoLight,
+                icon = Icons.Default.MedicalServices
             )
         }
     }
 }
 
 @Composable
-fun QuickStatsSection(
-    totalSessions: Int,
-    avgSnoreMinutes: Int
+private fun LabeledValue(
+    icon: ImageVector,
+    tint: Color,
+    label: String,
+    value: String
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Card(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    stringResource(R.string.total_tracked_nights),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "$totalSessions",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SleepTealAccent
-                )
-            }
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
         }
-
-        Card(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    stringResource(R.string.avg_snoring),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "${avgSnoreMinutes} min / nuit",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SleepIndigoLight
-                )
-            }
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }

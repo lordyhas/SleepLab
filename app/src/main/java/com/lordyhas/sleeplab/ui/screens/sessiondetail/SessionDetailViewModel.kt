@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.ui.screens.sessiondetail
+package com.lordyhas.sleeplab.ui.screens.sessiondetail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,7 +20,8 @@ data class SessionDetailUiState(
     val averageDb: Float = 0f,
     val maxDb: Float = 0f,
     val minDb: Float = 0f,
-    val snoreEventCount: Int = 0
+    val snoreEventCount: Int = 0,
+    val thresholdDb: Float = 50f
 )
 
 class SessionDetailViewModel(
@@ -66,7 +67,8 @@ class SessionDetailViewModel(
                 averageDb = avgDb,
                 maxDb = maxDb,
                 minDb = minDb,
-                snoreEventCount = snoreEvents.size
+                snoreEventCount = snoreEvents.size,
+                thresholdDb = SleepLabApp.instance.settingsRepository.thresholdDb.value
             )
         }
     }

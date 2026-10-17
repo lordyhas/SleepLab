@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.ui.screens.home
+package com.lordyhas.sleeplab.ui.screens.home
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -6,14 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.lordyhas.sleeplab.SleepLabApp
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
+import com.lordyhas.sleeplab.data.repository.SettingsRepository
 import com.lordyhas.sleeplab.data.repository.SleepSessionRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
 import com.lordyhas.sleeplab.service.SleepTrackingService
 import com.lordyhas.sleeplab.service.TrackingState
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
@@ -22,30 +21,29 @@ data class HomeUiState(
     val latestSessionTreatment: TreatmentEntity? = null,
     val totalSessionsCount: Int = 0,
     val averageSnoreDurationMinutes: Int = 0,
+    val bestNightSnoreMinutes: Int? = null,
     val activeTreatments: List<TreatmentEntity> = emptyList(),
     val selectedTreatmentId: Int? = null
 )
 
 class HomeViewModel(
-    private val sessionRepository: SleepSessionRepository = SleepLabApp.instance.sleepSessionRepository,
-    private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository
+    sessionRepository: SleepSessionRepository = SleepLabApp.instance.sleepSessionRepository,
+    private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository,
+    private val settingsRepository: SettingsRepository = SleepLabApp.instance.settingsRepository
 ) : ViewModel() {
 
     val trackingState: StateFlow<TrackingState> = SleepTrackingService.trackingState
 
-    private val _selectedTreatmentId = MutableStateFlow<Int?>(null)
-    val selectedTreatmentId: StateFlow<Int?> = _selectedTreatmentId.asStateFlow()
-
     val uiState: StateFlow<HomeUiState> = combine(
         sessionRepository.getAllSessions(),
         treatmentRepository.getActiveTreatments(),
-        _selectedTreatmentId
-    ) { sessions, activeTreatments, selectedId ->
-        val latest = sessions.firstOrNull { it.endTime > 0 }
+        settingsRepository.treatmentChoice
+    ) { sessions, activeTreatments, choice ->
+        val completedSessions = sessions.filter { it.endTime > 0 }
+        val latest = completedSessions.firstOrNull()
         val latestTreatment = latest?.treatmentId?.let { tid ->
             treatmentRepository.getTreatmentByIdDirect(tid)
         }
-        val completedSessions = sessions.filter { it.endTime > 0 }
         val avgSnoreSec = if (completedSessions.isNotEmpty()) {
             completedSessions.map { it.totalSnoreDurationSeconds }.average().toInt()
         } else 0
@@ -55,8 +53,9 @@ class HomeViewModel(
             latestSessionTreatment = latestTreatment,
             totalSessionsCount = completedSessions.size,
             averageSnoreDurationMinutes = avgSnoreSec / 60,
+            bestNightSnoreMinutes = completedSessions.minOfOrNull { it.totalSnoreDurationSeconds }?.div(60),
             activeTreatments = activeTreatments,
-            selectedTreatmentId = selectedId ?: activeTreatments.firstOrNull()?.id
+            selectedTreatmentId = SettingsRepository.resolveTreatmentId(choice, activeTreatments)
         )
     }.stateIn(
         scope = viewModelScope,
@@ -65,15 +64,14 @@ class HomeViewModel(
     )
 
     fun selectTreatment(treatmentId: Int?) {
-        _selectedTreatmentId.value = treatmentId
+        settingsRepository.setTreatmentChoice(treatmentId)
     }
 
     fun startTracking(context: Context) {
-        val treatmentId = _selectedTreatmentId.value ?: uiState.value.selectedTreatmentId
-        SleepTrackingService.startService(context, treatmentId)
-    }
-
-    fun stopTracking(context: Context) {
-        SleepTrackingService.stopService(context)
+        SleepTrackingService.startService(
+            context,
+            treatmentId = uiState.value.selectedTreatmentId,
+            thresholdDb = settingsRepository.thresholdDb.value
+        )
     }
 }
