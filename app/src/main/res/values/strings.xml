@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">SonreLab</string>
+    <string name="app_name">SleepLab</string>
     <string name="screen_home">Home</string>
     <string name="screen_tracking">Tracking</string>
     <string name="screen_analytics">Analytics</string>
@@ -76,4 +76,17 @@
     <string name="sleep_duration_format">Sleep: %1$dh %2$dm</string>
     <string name="insufficient_data">Insufficient Data</string>
     <string name="record_first_nights_unlock">Record your first nights to unlock evolution charts and comparative analysis of your treatments.</string>
+
+    <!-- Session Detail -->
+    <string name="screen_session_detail">Night Detail</string>
+    <string name="night_detail">Night Detail</string>
+    <string name="noise_timeline">Noise Level Timeline</string>
+    <string name="snore_threshold">Snore threshold</string>
+    <string name="avg_db">Avg dB</string>
+    <string name="max_db">Max dB</string>
+    <string name="min_db">Min dB</string>
+    <string name="snore_episodes">Episodes</string>
+    <string name="snore_events_list">Snore Events</string>
+    <string name="no_noise_data">No noise data recorded for this night.</string>
+    <string name="session_not_found">Session not found</string>
 </resources>

@@ -5,6 +5,7 @@ import com.lordyhas.sonrelab.data.local.AppDatabase
 import com.lordyhas.sonrelab.data.repository.SleepSessionRepository
 import com.lordyhas.sonrelab.data.repository.SnoreEventRepository
 import com.lordyhas.sonrelab.data.repository.TreatmentRepository
+import com.lordyhas.sonrelab.data.repository.NoiseSampleRepository
 
 class SonreLabApp : Application() {
 
@@ -12,6 +13,7 @@ class SonreLabApp : Application() {
     val treatmentRepository by lazy { TreatmentRepository(database.treatmentDao()) }
     val sleepSessionRepository by lazy { SleepSessionRepository(database.sleepSessionDao()) }
     val snoreEventRepository by lazy { SnoreEventRepository(database.snoreEventDao()) }
+    val noiseSampleRepository by lazy { NoiseSampleRepository(database.noiseSampleDao()) }
 
     override fun onCreate() {
         super.onCreate()

@@ -6,7 +6,9 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.lordyhas.sonrelab.data.local.dao.SleepSessionDao
 import com.lordyhas.sonrelab.data.local.dao.SnoreEventDao
+import com.lordyhas.sonrelab.data.local.dao.NoiseSampleDao
 import com.lordyhas.sonrelab.data.local.dao.TreatmentDao
+import com.lordyhas.sonrelab.data.local.entity.NoiseSampleEntity
 import com.lordyhas.sonrelab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sonrelab.data.local.entity.SnoreEventEntity
 import com.lordyhas.sonrelab.data.local.entity.TreatmentEntity
@@ -15,9 +17,10 @@ import com.lordyhas.sonrelab.data.local.entity.TreatmentEntity
     entities = [
         TreatmentEntity::class,
         SleepSessionEntity::class,
-        SnoreEventEntity::class
+        SnoreEventEntity::class,
+        NoiseSampleEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun treatmentDao(): TreatmentDao
     abstract fun sleepSessionDao(): SleepSessionDao
     abstract fun snoreEventDao(): SnoreEventDao
+    abstract fun noiseSampleDao(): NoiseSampleDao
 
     companion object {
         @Volatile

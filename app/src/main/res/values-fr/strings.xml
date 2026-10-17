@@ -78,4 +78,17 @@
     <string name="sleep_duration_format">Sommeil : %1$dh %2$dm</string>
     <string name="insufficient_data">Données insuffisantes</string>
     <string name="record_first_nights_unlock">Enregistrez vos premières nuits pour débloquer les graphiques d\'évolution et l\'analyse comparative de vos traitements.</string>
+
+    <!-- Session Detail -->
+    <string name="screen_session_detail">Détail de la Nuit</string>
+    <string name="night_detail">Détail de la Nuit</string>
+    <string name="noise_timeline">Chronologie du Bruit</string>
+    <string name="snore_threshold">Seuil de ronflement</string>
+    <string name="avg_db">Moy. dB</string>
+    <string name="max_db">Max dB</string>
+    <string name="min_db">Min dB</string>
+    <string name="snore_episodes">Épisodes</string>
+    <string name="snore_events_list">Événements de Ronflement</string>
+    <string name="no_noise_data">Aucune donnée sonore enregistrée pour cette nuit.</string>
+    <string name="session_not_found">Session introuvable</string>
 </resources>

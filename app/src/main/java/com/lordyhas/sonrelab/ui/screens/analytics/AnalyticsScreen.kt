@@ -2,6 +2,7 @@ package com.lordyhas.sonrelab.ui.screens.analytics
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,7 +68,8 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
-    viewModel: AnalyticsViewModel = viewModel()
+    viewModel: AnalyticsViewModel = viewModel(),
+    onNavigateToSessionDetail: (Int) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -139,7 +141,10 @@ fun AnalyticsScreen(
                 }
 
                 items(uiState.sessionsWithTreatments.reversed(), key = { it.session.id }) { item ->
-                    SessionHistoryCard(item = item)
+                    SessionHistoryCard(
+                        item = item,
+                        onClick = { onNavigateToSessionDetail(item.session.id) }
+                    )
                 }
             }
 
@@ -409,7 +414,10 @@ fun TreatmentPerformanceCard(impact: TreatmentImpact) {
 }
 
 @Composable
-fun SessionHistoryCard(item: SessionWithTreatment) {
+fun SessionHistoryCard(
+    item: SessionWithTreatment,
+    onClick: () -> Unit = {}
+) {
     val dateFormat = remember { SimpleDateFormat("EEE d MMM HH:mm", Locale.getDefault()) }
     val totalSleepSeconds = ((item.session.endTime - item.session.startTime) / 1000).coerceAtLeast(0)
     val sleepHours = totalSleepSeconds / 3600
@@ -417,7 +425,9 @@ fun SessionHistoryCard(item: SessionWithTreatment) {
     val snoreMin = item.session.totalSnoreDurationSeconds / 60
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
