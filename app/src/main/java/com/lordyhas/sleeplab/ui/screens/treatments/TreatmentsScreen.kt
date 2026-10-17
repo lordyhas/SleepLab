@@ -1,5 +1,6 @@
 package com.lordyhas.sleeplab.ui.screens.treatments
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
@@ -79,6 +82,7 @@ fun TreatmentsScreen(
 ) {
     val treatments by viewModel.treatments.collectAsState()
     val thresholdDb by viewModel.thresholdDb.collectAsState()
+    val autoCalibrate by viewModel.autoCalibrate.collectAsState()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<TreatmentEntity?>(null) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -95,6 +99,8 @@ fun TreatmentsScreen(
                 SectionHeader(stringResource(R.string.detection_section))
                 Spacer(Modifier.height(4.dp))
                 CalibrationCard(
+                    autoCalibrate = autoCalibrate,
+                    onAutoCalibrateChange = viewModel::setAutoCalibrate,
                     thresholdDb = thresholdDb,
                     onThresholdChange = viewModel::updateThreshold
                 )
@@ -195,6 +201,8 @@ fun TreatmentsScreen(
 
 @Composable
 private fun CalibrationCard(
+    autoCalibrate: Boolean,
+    onAutoCalibrateChange: (Boolean) -> Unit,
     thresholdDb: Float,
     onThresholdChange: (Float) -> Unit
 ) {
@@ -208,78 +216,93 @@ private fun CalibrationCard(
             IconBadge(icon = Icons.Default.Tune, tint = SleepTealAccent)
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.mic_sensitivity), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.auto_calibrate_title), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    stringResource(R.string.snore_trigger_threshold),
+                    stringResource(R.string.auto_calibrate_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = autoCalibrate, onCheckedChange = onAutoCalibrateChange)
         }
 
-        Spacer(Modifier.height(16.dp))
+        AnimatedVisibility(visible = !autoCalibrate) {
+            Column {
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                Spacer(Modifier.height(14.dp))
+                Text(stringResource(R.string.mic_sensitivity), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.manual_threshold_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
 
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                "${sliderValue.toInt()}",
-                style = MaterialTheme.typography.displaySmall,
-                color = levelColor
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                "dB",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 5.dp)
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                stringResource(
-                    when {
-                        sliderValue < 45f -> R.string.very_sensitive
-                        sliderValue < 60f -> R.string.recommended_normal
-                        else -> R.string.loud_snoring_only
-                    }
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
-        }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "${sliderValue.toInt()}",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = levelColor
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "dB",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 5.dp)
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        stringResource(
+                            when {
+                                sliderValue < 45f -> R.string.very_sensitive
+                                sliderValue < 60f -> R.string.recommended_normal
+                                else -> R.string.loud_snoring_only
+                            }
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
 
-        Slider(
-            value = sliderValue,
-            onValueChange = { sliderValue = it },
-            onValueChangeFinished = { onThresholdChange(sliderValue) },
-            valueRange = 35f..75f,
-            steps = 7,
-            colors = SliderDefaults.colors(
-                thumbColor = levelColor,
-                activeTrackColor = levelColor,
-                activeTickColor = MaterialTheme.colorScheme.surface,
-                inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                stringResource(R.string.more_sensitive),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                stringResource(R.string.loud_only_short),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { sliderValue = it },
+                    onValueChangeFinished = { onThresholdChange(sliderValue) },
+                    valueRange = 35f..75f,
+                    steps = 7,
+                    colors = SliderDefaults.colors(
+                        thumbColor = levelColor,
+                        activeTrackColor = levelColor,
+                        activeTickColor = MaterialTheme.colorScheme.surface,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.more_sensitive),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        stringResource(R.string.loud_only_short),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    stringResource(R.string.sensitivity_scale_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
         }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            stringResource(R.string.sensitivity_scale_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline
-        )
     }
 }
 

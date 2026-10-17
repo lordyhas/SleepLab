@@ -9,6 +9,7 @@ import com.lordyhas.sleeplab.data.local.entity.SnoreEventEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SessionDetailUiState(
@@ -21,7 +22,8 @@ data class SessionDetailUiState(
     val maxDb: Float = 0f,
     val minDb: Float = 0f,
     val snoreEventCount: Int = 0,
-    val thresholdDb: Float = 50f
+    /** True once the night has been deleted; the screen should close. */
+    val isDeleted: Boolean = false
 )
 
 class SessionDetailViewModel(
@@ -37,39 +39,57 @@ class SessionDetailViewModel(
     val uiState: StateFlow<SessionDetailUiState> = _uiState.asStateFlow()
 
     init {
-        loadSessionData()
+        loadRecordings()
+        observeSession()
     }
 
-    private fun loadSessionData() {
+    /** Events and samples never change after a night ends, so they're loaded once. */
+    private fun loadRecordings() {
         viewModelScope.launch {
-            val session = sessionRepository.getSessionByIdDirect(sessionId)
-            if (session == null) {
-                _uiState.value = SessionDetailUiState(isLoading = false)
-                return@launch
-            }
-
-            val treatmentName = session.treatmentId?.let {
-                treatmentRepository.getTreatmentByIdDirect(it)?.name
-            }
-
             val noiseSamples = noiseSampleRepository.getSamplesForSession(sessionId)
             val snoreEvents = snoreEventRepository.getEventsForSessionDirect(sessionId)
             val avgDb = noiseSampleRepository.getAverageDbForSession(sessionId) ?: 0f
             val maxDb = noiseSampleRepository.getMaxDbForSession(sessionId) ?: 0f
             val minDb = noiseSampleRepository.getMinDbForSession(sessionId) ?: 0f
-
-            _uiState.value = SessionDetailUiState(
-                isLoading = false,
-                session = session,
-                treatmentName = treatmentName,
-                noiseSamples = noiseSamples,
-                snoreEvents = snoreEvents,
-                averageDb = avgDb,
-                maxDb = maxDb,
-                minDb = minDb,
-                snoreEventCount = snoreEvents.size,
-                thresholdDb = SleepLabApp.instance.settingsRepository.thresholdDb.value
-            )
+            _uiState.update {
+                it.copy(
+                    noiseSamples = noiseSamples,
+                    snoreEvents = snoreEvents,
+                    averageDb = avgDb,
+                    maxDb = maxDb,
+                    minDb = minDb,
+                    snoreEventCount = snoreEvents.size
+                )
+            }
         }
+    }
+
+    /** The session row itself is observed so note / rating edits show up immediately. */
+    private fun observeSession() {
+        viewModelScope.launch {
+            sessionRepository.getSessionById(sessionId).collect { session ->
+                val treatmentName = session?.treatmentId?.let {
+                    treatmentRepository.getTreatmentByIdDirect(it)?.name
+                }
+                _uiState.update {
+                    it.copy(isLoading = false, session = session, treatmentName = treatmentName)
+                }
+            }
+        }
+    }
+
+    fun updateNote(note: String) {
+        viewModelScope.launch { sessionRepository.updateNote(sessionId, note) }
+    }
+
+    fun updateMorningRating(rating: Int?) {
+        viewModelScope.launch { sessionRepository.updateMorningRating(sessionId, rating) }
+    }
+
+    fun deleteNight() {
+        // Flag first: deleting makes the observed session emit null, which must not
+        // flash "session not found" before the screen closes.
+        _uiState.update { it.copy(isDeleted = true) }
+        viewModelScope.launch { sessionRepository.deleteNight(sessionId) }
     }
 }

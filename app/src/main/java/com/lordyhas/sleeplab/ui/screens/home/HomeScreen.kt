@@ -70,6 +70,7 @@ import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
 import com.lordyhas.sleeplab.ui.components.GaugeRing
 import com.lordyhas.sleeplab.ui.components.GlassCard
 import com.lordyhas.sleeplab.ui.components.MetricTile
+import com.lordyhas.sleeplab.ui.components.MorningRatingSelector
 import com.lordyhas.sleeplab.ui.components.Pill
 import com.lordyhas.sleeplab.ui.components.ScreenHeader
 import com.lordyhas.sleeplab.ui.components.SectionHeader
@@ -129,6 +130,19 @@ fun HomeScreen(
             )
         }
 
+        val unratedNight = uiState.latestSession?.takeIf {
+            it.morningRating == null &&
+                System.currentTimeMillis() - it.endTime < MORNING_PROMPT_WINDOW_MS
+        }
+        if (!trackingState.isTracking && unratedNight != null) {
+            item(key = "morningPrompt") {
+                MorningPromptCard(
+                    onRate = { rating -> viewModel.rateNight(unratedNight.id, rating) },
+                    modifier = Modifier.animateItem()
+                )
+            }
+        }
+
         if (!trackingState.isTracking) {
             item {
                 TreatmentSelectorSection(
@@ -180,6 +194,23 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+/** How long after a night ends the "How did you sleep?" card is offered. */
+private const val MORNING_PROMPT_WINDOW_MS = 18 * 60 * 60 * 1000L
+
+@Composable
+private fun MorningPromptCard(onRate: (Int) -> Unit, modifier: Modifier = Modifier) {
+    GlassCard(modifier = modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.morning_prompt_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.morning_prompt_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        MorningRatingSelector(rating = null, onRatingChange = { it?.let(onRate) })
     }
 }
 

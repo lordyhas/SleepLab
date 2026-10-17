@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.service
+package com.lordyhas.sleeplab.service
 
 import android.annotation.SuppressLint
 import android.media.AudioFormat
@@ -17,8 +17,12 @@ import kotlin.math.sqrt
 class AudioAnalyzer(
     private val scope: CoroutineScope,
     private var thresholdDb: Float = 50f,
+    /** When set, detection waits until the room's noise floor is measured, then uses its threshold. */
+    private val calibrator: NoiseFloorCalibrator? = null,
     private val onDecibelUpdate: (currentDb: Float) -> Unit,
-    private val onSnoreDetected: (amplitudeDb: Float, durationSeconds: Int) -> Unit
+    private val onSnoreDetected: (amplitudeDb: Float, durationSeconds: Int) -> Unit,
+    private val onCalibrationProgress: (progress: Float) -> Unit = {},
+    private val onCalibrated: (CalibrationResult) -> Unit = {}
 ) {
 
     private var audioRecord: AudioRecord? = null
@@ -112,6 +116,18 @@ class AudioAnalyzer(
                 }
 
                 onDecibelUpdate(db)
+
+                if (calibrator != null && !calibrator.isComplete) {
+                    calibrator.add(db, (readCount * 1000L / SAMPLE_RATE).coerceAtLeast(1L))
+                    onCalibrationProgress(calibrator.progress)
+                    if (calibrator.isComplete) {
+                        calibrator.result()?.let { result ->
+                            thresholdDb = result.thresholdDb
+                            onCalibrated(result)
+                        }
+                    }
+                    continue // no snore detection while measuring the room
+                }
 
                 // Snore detection algorithm:
                 // If dB is above threshold, we count consecutive active windows

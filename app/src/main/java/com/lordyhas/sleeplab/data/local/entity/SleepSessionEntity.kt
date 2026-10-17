@@ -1,5 +1,6 @@
-﻿package com.lordyhas.sleeplab.data.local.entity
+package com.lordyhas.sleeplab.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -24,5 +25,13 @@ data class SleepSessionEntity(
     val endTime: Long = 0L,
     val treatmentId: Int? = null,
     val totalSnoreDurationSeconds: Int = 0,
-    val snoreIntensityScore: Float = 0f
+    val snoreIntensityScore: Float = 0f,
+    /** Snore detection threshold (dB) actually used for this night. */
+    @ColumnInfo(defaultValue = "50.0")
+    val thresholdDb: Float = 50f,
+    /** Room background noise measured during calibration; null if calibration was off or didn't finish. */
+    val noiseFloorDb: Float? = null,
+    val note: String? = null,
+    /** How the user felt in the morning, 1 (bad) to 5 (great); null if not rated. */
+    val morningRating: Int? = null
 )

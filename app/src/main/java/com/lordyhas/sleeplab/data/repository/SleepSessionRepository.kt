@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.data.repository
+package com.lordyhas.sleeplab.data.repository
 
 import com.lordyhas.sleeplab.data.local.dao.SleepSessionDao
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
@@ -20,13 +20,14 @@ class SleepSessionRepository(private val sleepSessionDao: SleepSessionDao) {
     fun getSessionsBetween(fromTime: Long, toTime: Long): Flow<List<SleepSessionEntity>> =
         sleepSessionDao.getSessionsBetween(fromTime, toTime)
 
-    suspend fun startNewSession(treatmentId: Int?): Long {
+    suspend fun startNewSession(treatmentId: Int?, thresholdDb: Float): Long {
         val session = SleepSessionEntity(
             startTime = System.currentTimeMillis(),
             endTime = 0L,
             treatmentId = treatmentId,
             totalSnoreDurationSeconds = 0,
-            snoreIntensityScore = 0f
+            snoreIntensityScore = 0f,
+            thresholdDb = thresholdDb
         )
         return sleepSessionDao.insertSession(session)
     }
@@ -57,4 +58,16 @@ class SleepSessionRepository(private val sleepSessionDao: SleepSessionDao) {
     suspend fun deleteSessionById(id: Int) {
         sleepSessionDao.deleteSessionById(id)
     }
+
+    suspend fun saveCalibration(sessionId: Int, noiseFloorDb: Float, thresholdDb: Float) =
+        sleepSessionDao.updateCalibration(sessionId, noiseFloorDb, thresholdDb)
+
+    suspend fun updateNote(sessionId: Int, note: String?) =
+        sleepSessionDao.updateNote(sessionId, note?.trim()?.takeIf { it.isNotEmpty() })
+
+    suspend fun updateMorningRating(sessionId: Int, rating: Int?) =
+        sleepSessionDao.updateMorningRating(sessionId, rating?.coerceIn(1, 5))
+
+    /** Removes the night with its snore events and noise samples. */
+    suspend fun deleteNight(sessionId: Int) = sleepSessionDao.deleteNight(sessionId)
 }

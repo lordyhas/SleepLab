@@ -25,6 +25,12 @@ class TreatmentsViewModel(
 
     val thresholdDb: StateFlow<Float> = settingsRepository.thresholdDb
 
+    val autoCalibrate: StateFlow<Boolean> = settingsRepository.autoCalibrate
+
+    fun setAutoCalibrate(enabled: Boolean) {
+        settingsRepository.setAutoCalibrate(enabled)
+    }
+
     fun updateThreshold(value: Float) {
         settingsRepository.setThresholdDb(value)
     }
