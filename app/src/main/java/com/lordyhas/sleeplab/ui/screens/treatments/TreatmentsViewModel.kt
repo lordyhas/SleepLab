@@ -1,19 +1,19 @@
-﻿package com.lordyhas.sleeplab.ui.screens.treatments
+package com.lordyhas.sleeplab.ui.screens.treatments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lordyhas.sleeplab.SleepLabApp
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
+import com.lordyhas.sleeplab.data.repository.SettingsRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class TreatmentsViewModel(
-    private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository
+    private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository,
+    private val settingsRepository: SettingsRepository = SleepLabApp.instance.settingsRepository
 ) : ViewModel() {
 
     val treatments: StateFlow<List<TreatmentEntity>> = treatmentRepository.getAllTreatments()
@@ -23,11 +23,10 @@ class TreatmentsViewModel(
             initialValue = emptyList()
         )
 
-    private val _thresholdDb = MutableStateFlow(50f)
-    val thresholdDb: StateFlow<Float> = _thresholdDb.asStateFlow()
+    val thresholdDb: StateFlow<Float> = settingsRepository.thresholdDb
 
     fun updateThreshold(value: Float) {
-        _thresholdDb.value = value
+        settingsRepository.setThresholdDb(value)
     }
 
     fun addTreatment(name: String) {

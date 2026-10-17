@@ -1,10 +1,10 @@
-﻿package com.lordyhas.sleeplab.ui.screens.sessiondetail
+package com.lordyhas.sleeplab.ui.screens.sessiondetail
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,17 +14,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,16 +37,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -56,13 +58,26 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.data.local.entity.NoiseSampleEntity
 import com.lordyhas.sleeplab.data.local.entity.SnoreEventEntity
-import com.lordyhas.sleeplab.ui.theme.MidnightSurfaceCard
-import com.lordyhas.sleeplab.ui.theme.SleepIndigoPrimary
+import com.lordyhas.sleeplab.ui.components.Dot
+import com.lordyhas.sleeplab.ui.components.GaugeRing
+import com.lordyhas.sleeplab.ui.components.GlassCard
+import com.lordyhas.sleeplab.ui.components.MetricTile
+import com.lordyhas.sleeplab.ui.components.Pill
+import com.lordyhas.sleeplab.ui.components.SectionHeader
+import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
 import com.lordyhas.sleeplab.ui.theme.SnoreHigh
+import com.lordyhas.sleeplab.ui.theme.SnoreLow
+import com.lordyhas.sleeplab.ui.theme.SnoreMedium
+import com.lordyhas.sleeplab.ui.theme.snoreLevelColor
+import com.lordyhas.sleeplab.ui.util.formatDuration
+import com.lordyhas.sleeplab.ui.util.sessionDurationSeconds
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private const val CHART_MIN_DB = 20f
+private const val CHART_MAX_DB = 100f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,195 +85,206 @@ fun SessionDetailScreen(
     sessionId: Int,
     onNavigateBack: () -> Unit
 ) {
-    val factory = object : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SessionDetailViewModel(sessionId) as T
+    val factory = remember(sessionId) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return SessionDetailViewModel(sessionId) as T
+            }
         }
     }
     val viewModel: SessionDetailViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.night_detail), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.night_detail), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
-        },
-        containerColor = MaterialTheme.colorScheme.background
+        }
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = SleepTealAccent)
-            }
-        } else if (uiState.session == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.session_not_found))
-            }
-        } else {
-            val session = uiState.session!!
-            val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
-            val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-
-            LazyColumn(
+        val session = uiState.session
+        when {
+            uiState.isLoading -> Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(padding),
+                contentAlignment = Alignment.Center
             ) {
-                // Header (Date, Time, Treatment)
-                item {
-                    val totalSleepSeconds = ((session.endTime - session.startTime) / 1000).coerceAtLeast(0)
-                    val sleepHours = totalSleepSeconds / 3600
-                    val sleepMinutes = (totalSleepSeconds % 3600) / 60
+                CircularProgressIndicator(color = SleepTealAccent)
+            }
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = dateFormat.format(Date(session.startTime)).replaceFirstChar { it.uppercase() },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+            session == null -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(stringResource(R.string.session_not_found))
+            }
+
+            else -> {
+                val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
+                val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+                val score = session.snoreIntensityScore
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = padding.calculateTopPadding() + 4.dp,
+                        bottom = 32.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(16.dp), tint = SleepTealAccent)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "${timeFormat.format(Date(session.startTime))} → ${timeFormat.format(Date(session.endTime))} (${sleepHours}h ${sleepMinutes}m)",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            if (uiState.treatmentName != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.MedicalServices, contentDescription = null, modifier = Modifier.size(16.dp), tint = SleepIndigoPrimary)
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = uiState.treatmentName!!,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = SleepTealAccent
+                                        dateFormat.format(Date(session.startTime)).replaceFirstChar { it.titlecase() },
+                                        style = MaterialTheme.typography.titleLarge
                                     )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "${timeFormat.format(Date(session.startTime))} → ${timeFormat.format(Date(session.endTime))}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        formatDuration(sessionDurationSeconds(session.startTime, session.endTime)),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+                                    Pill(
+                                        text = uiState.treatmentName ?: stringResource(R.string.no_treatment),
+                                        color = if (uiState.treatmentName != null) SleepIndigoLight else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        icon = Icons.Default.MedicalServices
+                                    )
+                                }
+                                GaugeRing(
+                                    progress = score / 100f,
+                                    color = snoreLevelColor(score),
+                                    strokeWidth = 8.dp,
+                                    animationMillis = 900,
+                                    modifier = Modifier.size(96.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("${score.toInt()}", style = MaterialTheme.typography.headlineSmall)
+                                        Text(
+                                            stringResource(R.string.intensity_label),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // Timeline Chart
-                item {
-                    Text(
-                        stringResource(R.string.noise_timeline),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    if (uiState.noiseSamples.isEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().height(150.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(stringResource(R.string.no_noise_data), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                MetricTile(
+                                    modifier = Modifier.weight(1f),
+                                    label = stringResource(R.string.avg_db),
+                                    value = "${uiState.averageDb.toInt()}",
+                                    icon = Icons.AutoMirrored.Filled.ShowChart,
+                                    tint = SleepTealAccent
+                                )
+                                MetricTile(
+                                    modifier = Modifier.weight(1f),
+                                    label = stringResource(R.string.max_db),
+                                    value = "${uiState.maxDb.toInt()}",
+                                    icon = Icons.AutoMirrored.Filled.VolumeUp,
+                                    tint = SnoreHigh
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                MetricTile(
+                                    modifier = Modifier.weight(1f),
+                                    label = stringResource(R.string.min_db),
+                                    value = "${uiState.minDb.toInt()}",
+                                    icon = Icons.AutoMirrored.Filled.VolumeDown,
+                                    tint = SnoreLow
+                                )
+                                MetricTile(
+                                    modifier = Modifier.weight(1f),
+                                    label = stringResource(R.string.snore_episodes),
+                                    value = "${uiState.snoreEventCount}",
+                                    caption = formatDuration(session.totalSnoreDurationSeconds.toLong()),
+                                    icon = Icons.Default.GraphicEq,
+                                    tint = SnoreMedium
+                                )
                             }
                         }
-                    } else {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MidnightSurfaceCard)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .padding(16.dp)
-                            ) {
+                    }
+
+                    item {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.noise_timeline), style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                LegendItem(SleepTealAccent, stringResource(R.string.db_spl))
+                                LegendItem(SnoreHigh.copy(alpha = 0.6f), stringResource(R.string.snoring_title))
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            if (uiState.noiseSamples.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(120.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        stringResource(R.string.no_noise_data),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
                                 NightTimelineChart(
                                     noiseSamples = uiState.noiseSamples,
                                     snoreEvents = uiState.snoreEvents,
                                     sessionStartTime = session.startTime,
                                     sessionEndTime = session.endTime,
-                                    modifier = Modifier.fillMaxSize()
+                                    thresholdDb = uiState.thresholdDb,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
                                 )
                             }
                         }
                     }
-                }
 
-                // Stats row
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        StatBox(modifier = Modifier.weight(1f), title = stringResource(R.string.avg_db), value = "${uiState.averageDb.toInt()}")
-                        StatBox(modifier = Modifier.weight(1f), title = stringResource(R.string.max_db), value = "${uiState.maxDb.toInt()}")
-                        StatBox(modifier = Modifier.weight(1f), title = stringResource(R.string.min_db), value = "${uiState.minDb.toInt()}")
-                        StatBox(modifier = Modifier.weight(1f), title = stringResource(R.string.snore_episodes), value = "${uiState.snoreEventCount}")
-                    }
-                }
-
-                // Snore Events List
-                if (uiState.snoreEvents.isNotEmpty()) {
-                    item {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            stringResource(R.string.snore_events_list),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    items(uiState.snoreEvents, key = { it.id }) { event ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    if (uiState.snoreEvents.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(4.dp))
+                            SectionHeader(stringResource(R.string.snore_events_list))
+                        }
+                        item {
+                            GlassCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
                             ) {
-                                Text(
-                                    text = timeFormat.format(Date(event.timestamp)),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${event.amplitude.toInt()} dB",
-                                    color = SnoreHigh,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${event.durationSeconds}s",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                uiState.snoreEvents.forEachIndexed { index, event ->
+                                    if (index > 0) {
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                                    }
+                                    SnoreEventRow(event = event, time = timeFormat.format(Date(event.timestamp)))
+                                }
                             }
                         }
                     }
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
@@ -266,106 +292,147 @@ fun SessionDetailScreen(
 }
 
 @Composable
-fun NightTimelineChart(
+private fun LegendItem(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Dot(color = color)
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SnoreEventRow(event: SnoreEventEntity, time: String) {
+    val color = snoreLevelColor(event.amplitude)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Dot(color = color, size = 10.dp)
+        Spacer(Modifier.width(12.dp))
+        Text(time, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Text(
+            formatDuration(event.durationSeconds.toLong()),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            "${event.amplitude.toInt()} dB",
+            style = MaterialTheme.typography.labelLarge,
+            color = color,
+            modifier = Modifier.width(56.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun NightTimelineChart(
     noiseSamples: List<NoiseSampleEntity>,
     snoreEvents: List<SnoreEventEntity>,
     sessionStartTime: Long,
     sessionEndTime: Long,
+    thresholdDb: Float,
     modifier: Modifier = Modifier
 ) {
     if (noiseSamples.isEmpty() || sessionEndTime <= sessionStartTime) return
-    
+
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val thresholdLabel = stringResource(R.string.threshold_line, thresholdDb.toInt())
+    val gridColor = Color.White.copy(alpha = 0.07f)
+
     Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        
-        val maxDb = 100f
-        val durationMs = sessionEndTime - sessionStartTime
-        
-        // 1. Threshold line (50 dB)
-        val thresholdY = height - (50f / maxDb) * height
-        drawLine(
-            color = Color.White.copy(alpha = 0.3f),
-            start = Offset(0f, thresholdY),
-            end = Offset(width, thresholdY),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
-        )
-        
-        // 2. Snore events (vertical red bars)
+        val axisWidth = 26.dp.toPx()
+        val bottomLabelHeight = 18.dp.toPx()
+        val left = axisWidth
+        val width = size.width - axisWidth
+        val height = size.height - bottomLabelHeight
+        val durationMs = (sessionEndTime - sessionStartTime).toFloat()
+
+        fun xFor(timestamp: Long) = left + ((timestamp - sessionStartTime) / durationMs).coerceIn(0f, 1f) * width
+        fun yFor(db: Float) = height - ((db - CHART_MIN_DB) / (CHART_MAX_DB - CHART_MIN_DB)).coerceIn(0f, 1f) * height
+
+        // Y gridlines
+        listOf(40f, 60f, 80f).forEach { db ->
+            val y = yFor(db)
+            drawLine(gridColor, Offset(left, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+            val label = textMeasurer.measure("${db.toInt()}", labelStyle)
+            drawText(label, topLeft = Offset(0f, y - label.size.height / 2f))
+        }
+
+        // Snore events as translucent bands
         snoreEvents.forEach { event ->
-            val eventRelativeTime = event.timestamp - sessionStartTime
-            val x = (eventRelativeTime.toFloat() / durationMs.toFloat()) * width
-            // width based on duration
-            val eventWidth = ((event.durationSeconds * 1000f) / durationMs.toFloat()) * width
-            val finalWidth = eventWidth.coerceAtLeast(2.dp.toPx()) // at least 2dp visible
-            
+            val x = xFor(event.timestamp)
+            val bandWidth = ((event.durationSeconds * 1000f) / durationMs * width).coerceAtLeast(2.dp.toPx())
             drawRect(
-                color = SnoreHigh.copy(alpha = 0.4f),
+                color = SnoreHigh.copy(alpha = 0.22f),
                 topLeft = Offset(x, 0f),
-                size = androidx.compose.ui.geometry.Size(finalWidth, height)
+                size = Size(bandWidth, height)
             )
         }
-        
-        // 3. Noise samples path
+
+        // Threshold
+        val thresholdY = yFor(thresholdDb)
+        drawLine(
+            color = Color.White.copy(alpha = 0.35f),
+            start = Offset(left, thresholdY),
+            end = Offset(size.width, thresholdY),
+            strokeWidth = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+        )
+        val thresholdText = textMeasurer.measure(thresholdLabel, labelStyle)
+        drawText(
+            thresholdText,
+            topLeft = Offset(size.width - thresholdText.size.width, thresholdY - thresholdText.size.height - 2.dp.toPx())
+        )
+
+        // Noise line + gradient fill
         val path = Path()
-        var isFirst = true
-        var lastX = 0f
-        
-        noiseSamples.forEach { sample ->
-            val relativeTime = sample.timestamp - sessionStartTime
-            val x = (relativeTime.toFloat() / durationMs.toFloat()) * width
-            val y = height - (sample.decibelLevel / maxDb) * height
-            
-            if (isFirst) {
-                path.moveTo(x, y)
-                isFirst = false
-            } else {
-                path.lineTo(x, y)
-            }
+        val firstX = xFor(noiseSamples.first().timestamp)
+        var lastX = firstX
+        noiseSamples.forEachIndexed { index, sample ->
+            val x = xFor(sample.timestamp)
+            val y = yFor(sample.decibelLevel)
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
             lastX = x
         }
-        
-        // Fill gradient
         val fillPath = Path().apply {
             addPath(path)
             lineTo(lastX, height)
-            lineTo(0f, height) // assume started at 0 x
+            lineTo(firstX, height)
             close()
         }
-        
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
-                colors = listOf(SleepTealAccent.copy(alpha = 0.5f), Color.Transparent),
+                colors = listOf(SleepTealAccent.copy(alpha = 0.35f), Color.Transparent),
                 startY = 0f,
                 endY = height
             )
         )
-        
-        // Draw the stroke
         drawPath(
             path = path,
             color = SleepTealAccent,
-            style = Stroke(width = 2.dp.toPx())
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
-    }
-}
 
-@Composable
-fun StatBox(modifier: Modifier = Modifier, title: String, value: String) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MidnightSurfaceCard)
-            .padding(12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SleepTealAccent)
+        // X labels: start, middle, end
+        listOf(
+            sessionStartTime,
+            sessionStartTime + (sessionEndTime - sessionStartTime) / 2,
+            sessionEndTime
+        ).forEachIndexed { index, ts ->
+            val label = textMeasurer.measure(timeFormat.format(Date(ts)), labelStyle)
+            val x = when (index) {
+                0 -> left
+                2 -> size.width - label.size.width
+                else -> xFor(ts) - label.size.width / 2f
+            }
+            drawText(label, topLeft = Offset(x, height + 4.dp.toPx()))
         }
     }
 }

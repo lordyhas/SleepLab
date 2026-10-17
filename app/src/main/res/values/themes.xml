@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.SleepLab" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark window background avoids a white flash before Compose draws the night sky. -->
+    <style name="Theme.SleepLab" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/night_background</item>
+        <item name="android:colorBackground">@color/night_background</item>
+    </style>
 </resources>
