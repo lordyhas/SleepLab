@@ -1,5 +1,4 @@
-# SleepLab 
-- Old name : SnoreLab  (SnoreTracker)
+# SleepLab
 
 SleepLab is a native Android application (AI Healthcare & Wellness to be) designed to track sleep, record and quantify snoring in the background, and correlate this data with medical treatments followed by the user to measure their effectiveness.
 
