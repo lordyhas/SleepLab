@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.data.local
+package com.lordyhas.sleeplab.data.local
 
 import android.content.Context
 import androidx.room.Database
@@ -20,8 +20,8 @@ import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
         SnoreEventEntity::class,
         NoiseSampleEntity::class
     ],
-    version = 2,
-    exportSchema = false
+    version = 3,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -41,7 +41,10 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "snore_tracker_database"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(*ALL_MIGRATIONS)
+                    // Only pre-release v1 databases (never shipped with real data) may be wiped.
+                    // From v2 on, every schema change needs a Migration — see Migrations.kt.
+                    .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1)
                     .build()
                 INSTANCE = instance
                 instance

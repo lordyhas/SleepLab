@@ -17,6 +17,10 @@ class SettingsRepository(context: Context) {
     /** Sound level (dB) above which audio counts as snoring. */
     val thresholdDb: StateFlow<Float> = _thresholdDb.asStateFlow()
 
+    private val _autoCalibrate = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CALIBRATE, true))
+    /** Measure the room's noise at the start of each night and derive the threshold from it. */
+    val autoCalibrate: StateFlow<Boolean> = _autoCalibrate.asStateFlow()
+
     private val _treatmentChoice = MutableStateFlow(prefs.getInt(KEY_TREATMENT_CHOICE, CHOICE_UNSET))
     /**
      * The treatment the user picked for tonight: a treatment id, [CHOICE_NONE] for an explicit
@@ -27,6 +31,11 @@ class SettingsRepository(context: Context) {
     fun setThresholdDb(value: Float) {
         _thresholdDb.value = value
         prefs.edit().putFloat(KEY_THRESHOLD_DB, value).apply()
+    }
+
+    fun setAutoCalibrate(enabled: Boolean) {
+        _autoCalibrate.value = enabled
+        prefs.edit().putBoolean(KEY_AUTO_CALIBRATE, enabled).apply()
     }
 
     fun setTreatmentChoice(treatmentId: Int?) {
@@ -43,6 +52,7 @@ class SettingsRepository(context: Context) {
         private const val PREFS_NAME = "sleeplab_settings"
         private const val KEY_THRESHOLD_DB = "threshold_db"
         private const val KEY_TREATMENT_CHOICE = "treatment_choice"
+        private const val KEY_AUTO_CALIBRATE = "auto_calibrate"
 
         /**
          * Turns a stored choice into the treatment id to record with, falling back to the first

@@ -146,4 +146,28 @@
     <string name="mic_permission_title">Microphone needed</string>
     <string name="mic_permission_message">SleepLab listens for snoring through the microphone. Audio is analysed on the device and never recorded or sent anywhere. Allow microphone access in Settings to start tracking.</string>
     <string name="open_settings">Open settings</string>
+    <!-- Phase 1: calibration, notes, rating, delete -->
+    <string name="calibrating_room">Measuring room noise… %1$d s</string>
+    <string name="calibration_hint">Stay quiet for a moment, this sets tonight’s threshold.</string>
+    <string name="room_noise_summary">Room %1$d dB · threshold %2$d dB</string>
+    <string name="auto_calibrate_title">Auto-calibrate each night</string>
+    <string name="auto_calibrate_desc">Measures your room’s background noise for 30 s when you start, then sets the threshold just above it.</string>
+    <string name="manual_threshold_hint">Used when auto-calibrate is off.</string>
+    <string name="detection_info_auto">Room noise %1$d dB · calibrated threshold %2$d dB</string>
+    <string name="detection_info_manual">Manual threshold %1$d dB</string>
+    <string name="morning_prompt_title">How did you sleep?</string>
+    <string name="morning_prompt_subtitle">Rating your nights helps link snoring to how you feel.</string>
+    <string name="morning_rating_label">Morning rating</string>
+    <string name="rating_1">Awful</string>
+    <string name="rating_2">Poor</string>
+    <string name="rating_3">Okay</string>
+    <string name="rating_4">Good</string>
+    <string name="rating_5">Great</string>
+    <string name="night_note">Note</string>
+    <string name="add_note">Add a note</string>
+    <string name="edit_note">Edit note</string>
+    <string name="note_hint">e.g. had a cold, slept on my back…</string>
+    <string name="delete_night">Delete night</string>
+    <string name="delete_night_title">Delete this night?</string>
+    <string name="delete_night_message">Its snore events and noise data will be permanently removed.</string>
 </resources>

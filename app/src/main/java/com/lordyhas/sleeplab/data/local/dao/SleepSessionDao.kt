@@ -1,10 +1,11 @@
-﻿package com.lordyhas.sleeplab.data.local.dao
+package com.lordyhas.sleeplab.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import kotlinx.coroutines.flow.Flow
@@ -40,4 +41,27 @@ interface SleepSessionDao {
 
     @Query("DELETE FROM sleep_sessions WHERE id = :id")
     suspend fun deleteSessionById(id: Int)
+
+    @Query("UPDATE sleep_sessions SET noiseFloorDb = :noiseFloorDb, thresholdDb = :thresholdDb WHERE id = :id")
+    suspend fun updateCalibration(id: Int, noiseFloorDb: Float, thresholdDb: Float)
+
+    @Query("UPDATE sleep_sessions SET note = :note WHERE id = :id")
+    suspend fun updateNote(id: Int, note: String?)
+
+    @Query("UPDATE sleep_sessions SET morningRating = :rating WHERE id = :id")
+    suspend fun updateMorningRating(id: Int, rating: Int?)
+
+    @Query("DELETE FROM snore_events WHERE sessionId = :sessionId")
+    suspend fun deleteEventsForSession(sessionId: Int)
+
+    @Query("DELETE FROM noise_samples WHERE sessionId = :sessionId")
+    suspend fun deleteSamplesForSession(sessionId: Int)
+
+    /** Deletes a night and everything recorded during it, atomically. */
+    @Transaction
+    suspend fun deleteNight(id: Int) {
+        deleteEventsForSession(id)
+        deleteSamplesForSession(id)
+        deleteSessionById(id)
+    }
 }

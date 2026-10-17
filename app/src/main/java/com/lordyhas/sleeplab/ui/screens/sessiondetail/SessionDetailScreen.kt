@@ -1,6 +1,25 @@
 package com.lordyhas.sleeplab.ui.screens.sessiondetail
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.lordyhas.sleeplab.ui.components.MorningRatingSelector
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +114,12 @@ fun SessionDetailScreen(
     }
     val viewModel: SessionDetailViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.isDeleted) {
+        if (uiState.isDeleted) onNavigateBack()
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -104,6 +129,13 @@ fun SessionDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    if (uiState.session != null) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete_night))
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -120,6 +152,8 @@ fun SessionDetailScreen(
             ) {
                 CircularProgressIndicator(color = SleepTealAccent)
             }
+
+            uiState.isDeleted -> Unit
 
             session == null -> Box(
                 modifier = Modifier
@@ -170,6 +204,14 @@ fun SessionDetailScreen(
                                         color = if (uiState.treatmentName != null) SleepIndigoLight else MaterialTheme.colorScheme.onSurfaceVariant,
                                         icon = Icons.Default.MedicalServices
                                     )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        session.noiseFloorDb?.let {
+                                            stringResource(R.string.detection_info_auto, it.toInt(), session.thresholdDb.toInt())
+                                        } ?: stringResource(R.string.detection_info_manual, session.thresholdDb.toInt()),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                                 GaugeRing(
                                     progress = score / 100f,
@@ -188,6 +230,21 @@ fun SessionDetailScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    item {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.morning_rating_label), style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.height(8.dp))
+                            MorningRatingSelector(
+                                rating = session.morningRating,
+                                onRatingChange = viewModel::updateMorningRating
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                            Spacer(Modifier.height(4.dp))
+                            NoteRow(note = session.note, onEdit = { showNoteDialog = true })
                         }
                     }
 
@@ -257,7 +314,7 @@ fun SessionDetailScreen(
                                     snoreEvents = uiState.snoreEvents,
                                     sessionStartTime = session.startTime,
                                     sessionEndTime = session.endTime,
-                                    thresholdDb = uiState.thresholdDb,
+                                    thresholdDb = session.thresholdDb,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(200.dp)
@@ -289,6 +346,110 @@ fun SessionDetailScreen(
             }
         }
     }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            icon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+            title = { Text(stringResource(R.string.delete_night_title)) },
+            text = { Text(stringResource(R.string.delete_night_message)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.deleteNight()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showNoteDialog) {
+        NoteDialog(
+            initial = uiState.session?.note.orEmpty(),
+            onDismiss = { showNoteDialog = false },
+            onSave = { note ->
+                viewModel.updateNote(note)
+                showNoteDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun NoteRow(note: String?, onEdit: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onEdit)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.Notes,
+            contentDescription = null,
+            tint = SleepIndigoLight,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.night_note),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                note ?: stringResource(R.string.add_note),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (note != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
+            )
+        }
+        Icon(
+            Icons.Default.Edit,
+            contentDescription = stringResource(if (note != null) R.string.edit_note else R.string.add_note),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun NoteDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by rememberSaveable { mutableStateOf(initial) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (initial.isEmpty()) R.string.add_note else R.string.edit_note)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text(stringResource(R.string.note_hint)) },
+                minLines = 3,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onSave(text) }) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

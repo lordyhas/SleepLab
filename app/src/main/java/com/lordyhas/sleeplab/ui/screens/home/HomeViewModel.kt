@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val latestSession: SleepSessionEntity? = null,
@@ -27,7 +28,7 @@ data class HomeUiState(
 )
 
 class HomeViewModel(
-    sessionRepository: SleepSessionRepository = SleepLabApp.instance.sleepSessionRepository,
+    private val sessionRepository: SleepSessionRepository = SleepLabApp.instance.sleepSessionRepository,
     private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository,
     private val settingsRepository: SettingsRepository = SleepLabApp.instance.settingsRepository
 ) : ViewModel() {
@@ -63,6 +64,10 @@ class HomeViewModel(
         initialValue = HomeUiState()
     )
 
+    fun rateNight(sessionId: Int, rating: Int) {
+        viewModelScope.launch { sessionRepository.updateMorningRating(sessionId, rating) }
+    }
+
     fun selectTreatment(treatmentId: Int?) {
         settingsRepository.setTreatmentChoice(treatmentId)
     }
@@ -71,7 +76,8 @@ class HomeViewModel(
         SleepTrackingService.startService(
             context,
             treatmentId = uiState.value.selectedTreatmentId,
-            thresholdDb = settingsRepository.thresholdDb.value
+            thresholdDb = settingsRepository.thresholdDb.value,
+            autoCalibrate = settingsRepository.autoCalibrate.value
         )
     }
 }

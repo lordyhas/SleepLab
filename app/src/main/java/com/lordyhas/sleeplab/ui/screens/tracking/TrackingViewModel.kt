@@ -21,8 +21,6 @@ class TrackingViewModel(
 
     val trackingState: StateFlow<TrackingState> = SleepTrackingService.trackingState
 
-    val thresholdDb: StateFlow<Float> = settingsRepository.thresholdDb
-
     val allTreatments: StateFlow<List<TreatmentEntity>> = treatmentRepository.getAllTreatments()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -39,7 +37,8 @@ class TrackingViewModel(
         SleepTrackingService.startService(
             context,
             treatmentId = plannedTreatment.value?.id,
-            thresholdDb = settingsRepository.thresholdDb.value
+            thresholdDb = settingsRepository.thresholdDb.value,
+            autoCalibrate = settingsRepository.autoCalibrate.value
         )
     }
 

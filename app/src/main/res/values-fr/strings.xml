@@ -149,4 +149,28 @@
     <string name="mic_permission_title">Microphone requis</string>
     <string name="mic_permission_message">SleepLab détecte les ronflements grâce au microphone. L\'audio est analysé sur l\'appareil, jamais enregistré ni envoyé. Autorisez l\'accès au microphone dans les Réglages pour lancer le suivi.</string>
     <string name="open_settings">Ouvrir les réglages</string>
+    <!-- Phase 1 : calibration, notes, note du matin, suppression -->
+    <string name="calibrating_room">Mesure du bruit ambiant… %1$d s</string>
+    <string name="calibration_hint">Restez silencieux un instant, cela règle le seuil de la nuit.</string>
+    <string name="room_noise_summary">Pièce %1$d dB · seuil %2$d dB</string>
+    <string name="auto_calibrate_title">Calibrer automatiquement chaque nuit</string>
+    <string name="auto_calibrate_desc">Mesure le bruit de fond de votre chambre pendant 30 s au démarrage, puis règle le seuil juste au-dessus.</string>
+    <string name="manual_threshold_hint">Utilisé lorsque la calibration automatique est désactivée.</string>
+    <string name="detection_info_auto">Bruit ambiant %1$d dB · seuil calibré %2$d dB</string>
+    <string name="detection_info_manual">Seuil manuel %1$d dB</string>
+    <string name="morning_prompt_title">Comment avez-vous dormi ?</string>
+    <string name="morning_prompt_subtitle">Noter vos nuits aide à relier ronflements et forme du matin.</string>
+    <string name="morning_rating_label">Note du matin</string>
+    <string name="rating_1">Très mal</string>
+    <string name="rating_2">Mal</string>
+    <string name="rating_3">Moyen</string>
+    <string name="rating_4">Bien</string>
+    <string name="rating_5">Très bien</string>
+    <string name="night_note">Note</string>
+    <string name="add_note">Ajouter une note</string>
+    <string name="edit_note">Modifier la note</string>
+    <string name="note_hint">ex. : enrhumé, dormi sur le dos…</string>
+    <string name="delete_night">Supprimer la nuit</string>
+    <string name="delete_night_title">Supprimer cette nuit ?</string>
+    <string name="delete_night_message">Ses événements de ronflement et données sonores seront définitivement supprimés.</string>
 </resources>

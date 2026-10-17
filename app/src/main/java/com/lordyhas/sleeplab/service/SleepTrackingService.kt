@@ -51,17 +51,28 @@ class SleepTrackingService : Service() {
         const val ACTION_STOP = "com.lordyhas.sleeplab.action.STOP_TRACKING"
         const val EXTRA_TREATMENT_ID = "extra_treatment_id"
         const val EXTRA_THRESHOLD_DB = "extra_threshold_db"
+        const val EXTRA_AUTO_CALIBRATE = "extra_auto_calibrate"
 
         private val _trackingState = MutableStateFlow(TrackingState())
         val trackingState: StateFlow<TrackingState> = _trackingState.asStateFlow()
 
-        fun startService(context: Context, treatmentId: Int? = null, thresholdDb: Float = 50f) {
+        /**
+         * @param thresholdDb manual threshold; with [autoCalibrate] it is only used until the
+         *   room's noise floor has been measured.
+         */
+        fun startService(
+            context: Context,
+            treatmentId: Int? = null,
+            thresholdDb: Float = 50f,
+            autoCalibrate: Boolean = false
+        ) {
             val intent = Intent(context, SleepTrackingService::class.java).apply {
                 action = ACTION_START
                 if (treatmentId != null) {
                     putExtra(EXTRA_TREATMENT_ID, treatmentId)
                 }
                 putExtra(EXTRA_THRESHOLD_DB, thresholdDb)
+                putExtra(EXTRA_AUTO_CALIBRATE, autoCalibrate)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -92,7 +103,8 @@ class SleepTrackingService : Service() {
                     intent.getIntExtra(EXTRA_TREATMENT_ID, -1).takeIf { it != -1 }
                 } else null
                 val thresholdDb = intent.getFloatExtra(EXTRA_THRESHOLD_DB, 50f)
-                startTracking(treatmentId, thresholdDb)
+                val autoCalibrate = intent.getBooleanExtra(EXTRA_AUTO_CALIBRATE, false)
+                startTracking(treatmentId, thresholdDb, autoCalibrate)
             }
             ACTION_STOP -> {
                 stopTracking()
@@ -101,7 +113,7 @@ class SleepTrackingService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun startTracking(treatmentId: Int?, thresholdDb: Float) {
+    private fun startTracking(treatmentId: Int?, thresholdDb: Float, autoCalibrate: Boolean) {
         if (_trackingState.value.isTracking) return
 
         // Defensive guard: RECORD_AUDIO must be granted at runtime before starting
@@ -142,7 +154,7 @@ class SleepTrackingService : Service() {
         // Create Room Session
         serviceScope.launch(Dispatchers.IO) {
             val app = SleepLabApp.instance
-            val sessionId = app.sleepSessionRepository.startNewSession(treatmentId).toInt()
+            val sessionId = app.sleepSessionRepository.startNewSession(treatmentId, thresholdDb).toInt()
             currentSessionId = sessionId
 
             _trackingState.update {
@@ -156,7 +168,11 @@ class SleepTrackingService : Service() {
                     snoreCount = 0,
                     totalSnoreSeconds = 0,
                     maxDb = 0f,
-                    recentDbHistory = emptyList()
+                    recentDbHistory = emptyList(),
+                    thresholdDb = thresholdDb,
+                    noiseFloorDb = null,
+                    isCalibrating = autoCalibrate,
+                    calibrationProgress = 0f
                 )
             }
 
@@ -164,11 +180,18 @@ class SleepTrackingService : Service() {
             audioAnalyzer = AudioAnalyzer(
                 scope = serviceScope,
                 thresholdDb = thresholdDb,
+                calibrator = if (autoCalibrate) NoiseFloorCalibrator() else null,
                 onDecibelUpdate = { db ->
                     handleDecibelUpdate(db)
                 },
                 onSnoreDetected = { amplitudeDb, durationSec ->
                     handleSnoreDetected(sessionId, amplitudeDb, durationSec)
+                },
+                onCalibrationProgress = { progress ->
+                    _trackingState.update { it.copy(calibrationProgress = progress) }
+                },
+                onCalibrated = { result ->
+                    handleCalibrated(sessionId, result)
                 }
             ).also { it.start() }
 
@@ -236,6 +259,24 @@ class SleepTrackingService : Service() {
         }
     }
 
+    private fun handleCalibrated(sessionId: Int, result: CalibrationResult) {
+        _trackingState.update {
+            it.copy(
+                isCalibrating = false,
+                calibrationProgress = 1f,
+                noiseFloorDb = result.noiseFloorDb,
+                thresholdDb = result.thresholdDb
+            )
+        }
+        serviceScope.launch(Dispatchers.IO) {
+            SleepLabApp.instance.sleepSessionRepository.saveCalibration(
+                sessionId = sessionId,
+                noiseFloorDb = result.noiseFloorDb,
+                thresholdDb = result.thresholdDb
+            )
+        }
+    }
+
     private fun stopTracking() {
         val sessionId = currentSessionId
         val totalSnoreSeconds = _trackingState.value.totalSnoreSeconds
@@ -265,6 +306,7 @@ class SleepTrackingService : Service() {
             _trackingState.update {
                 it.copy(
                     isTracking = false,
+                    isCalibrating = false,
                     currentDb = 0f
                 )
             }
@@ -377,5 +419,10 @@ data class TrackingState(
     val snoreCount: Int = 0,
     val totalSnoreSeconds: Int = 0,
     val maxDb: Float = 0f,
-    val recentDbHistory: List<Float> = emptyList()
+    val recentDbHistory: List<Float> = emptyList(),
+    /** Threshold in use right now (manual, or the calibrated one once measured). */
+    val thresholdDb: Float = 50f,
+    val noiseFloorDb: Float? = null,
+    val isCalibrating: Boolean = false,
+    val calibrationProgress: Float = 0f
 )

@@ -1,6 +1,8 @@
 package com.lordyhas.sleeplab.ui.screens.tracking
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -39,11 +41,13 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lordyhas.sleeplab.R
+import com.lordyhas.sleeplab.service.NoiseFloorCalibrator
 import com.lordyhas.sleeplab.service.TrackingState
 import com.lordyhas.sleeplab.ui.components.GaugeRing
 import com.lordyhas.sleeplab.ui.components.GlassCard
@@ -92,6 +97,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.ceil
 
 /** dB range mapped onto the live gauge. */
 private const val GAUGE_MIN_DB = 20f
@@ -106,7 +112,6 @@ fun TrackingScreen(
     val trackingState by viewModel.trackingState.collectAsState()
     val allTreatments by viewModel.allTreatments.collectAsState()
     val plannedTreatment by viewModel.plannedTreatment.collectAsState()
-    val thresholdDb by viewModel.thresholdDb.collectAsState()
 
     val startTracking = rememberMicPermissionGate { viewModel.startTracking(context) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -128,7 +133,6 @@ fun TrackingScreen(
 
                 ActiveTrackingContent(
                     state = trackingState,
-                    thresholdDb = thresholdDb,
                     treatmentName = treatmentName,
                     onStop = { viewModel.stopTracking(context) }
                 )
@@ -146,12 +150,12 @@ fun TrackingScreen(
 @Composable
 private fun ActiveTrackingContent(
     state: TrackingState,
-    thresholdDb: Float,
     treatmentName: String,
     onStop: () -> Unit
 ) {
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val dbColor = snoreLevelColor(state.currentDb)
+    val thresholdDb = state.thresholdDb
     val aboveThreshold = state.currentDb >= thresholdDb
 
     var showHoldHint by remember { mutableStateOf(false) }
@@ -180,8 +184,10 @@ private fun ActiveTrackingContent(
                 icon = Icons.Default.MedicalServices,
                 modifier = Modifier.align(Alignment.Start)
             )
+            Spacer(Modifier.height(10.dp))
+            CalibrationStatus(state = state, modifier = Modifier.align(Alignment.Start))
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
             Text(
                 formatClock(state.elapsedSeconds),
@@ -210,12 +216,14 @@ private fun ActiveTrackingContent(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Pill(
-                            text = stringResource(if (aboveThreshold) R.string.level_above_threshold else R.string.level_quiet),
-                            color = dbColor,
-                            icon = if (aboveThreshold) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.Bedtime
-                        )
+                        if (!state.isCalibrating) {
+                            Spacer(Modifier.height(8.dp))
+                            Pill(
+                                text = stringResource(if (aboveThreshold) R.string.level_above_threshold else R.string.level_quiet),
+                                color = dbColor,
+                                icon = if (aboveThreshold) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.Bedtime
+                            )
+                        }
                     }
                 }
             }
@@ -283,6 +291,67 @@ private fun ActiveTrackingContent(
             onTapTooShort = { showHoldHint = true },
             modifier = Modifier.padding(bottom = 20.dp)
         )
+    }
+}
+
+/** Calibration progress while the room is measured, then the resulting floor and threshold. */
+@Composable
+private fun CalibrationStatus(state: TrackingState, modifier: Modifier = Modifier) {
+    AnimatedContent(
+        targetState = state.isCalibrating,
+        transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
+        label = "calibrationStatus",
+        modifier = modifier
+    ) { calibrating ->
+        if (calibrating) {
+            val secondsLeft = ceil(
+                (1f - state.calibrationProgress) * NoiseFloorCalibrator.DEFAULT_DURATION_MS / 1000f
+            ).toInt()
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = SleepTealAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.calibrating_room, secondsLeft),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { state.calibrationProgress },
+                    color = SleepTealAccent,
+                    trackColor = Color.White.copy(alpha = 0.08f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(CircleShape)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.calibration_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            val floor = state.noiseFloorDb
+            Pill(
+                text = if (floor != null) {
+                    stringResource(R.string.room_noise_summary, floor.toInt(), state.thresholdDb.toInt())
+                } else {
+                    stringResource(R.string.detection_info_manual, state.thresholdDb.toInt())
+                },
+                color = SleepTealAccent,
+                icon = Icons.Default.Tune
+            )
+        }
     }
 }
 
