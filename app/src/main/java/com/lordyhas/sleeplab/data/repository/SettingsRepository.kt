@@ -47,6 +47,12 @@ class SettingsRepository(context: Context) {
     /** Bedtime reminder time (minutes after midnight). */
     val reminderMinuteOfDay: StateFlow<Int> = _reminderMinuteOfDay.asStateFlow()
 
+    private val _tonightFactorIds = MutableStateFlow(
+        prefs.getStringSet(KEY_TONIGHT_FACTORS, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
+    )
+    /** Factors picked for the next night; attached when it starts, then cleared. */
+    val tonightFactorIds: StateFlow<Set<Int>> = _tonightFactorIds.asStateFlow()
+
     private val _treatmentChoice = MutableStateFlow(prefs.getInt(KEY_TREATMENT_CHOICE, CHOICE_UNSET))
     /**
      * The treatment the user picked for tonight: a treatment id, [CHOICE_NONE] for an explicit
@@ -91,6 +97,11 @@ class SettingsRepository(context: Context) {
         prefs.edit().putBoolean(KEY_REMINDER_ENABLED, enabled).putInt(KEY_REMINDER_MINUTE, minuteOfDay).apply()
     }
 
+    fun setTonightFactorIds(ids: Set<Int>) {
+        _tonightFactorIds.value = ids
+        prefs.edit().putStringSet(KEY_TONIGHT_FACTORS, ids.map { it.toString() }.toSet()).apply()
+    }
+
     fun setTreatmentChoice(treatmentId: Int?) {
         val choice = treatmentId ?: CHOICE_NONE
         _treatmentChoice.value = choice
@@ -112,6 +123,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_CLIPS_ENABLED = "clips_enabled"
         private const val KEY_CLIP_RETENTION_DAYS = "clip_retention_days"
         private const val KEY_START_DELAY_MIN = "start_delay_minutes"
+        private const val KEY_TONIGHT_FACTORS = "tonight_factor_ids"
         private const val KEY_AUTO_STOP_ENABLED = "auto_stop_enabled"
         private const val KEY_AUTO_STOP_MINUTE = "auto_stop_minute"
         private const val KEY_REMINDER_ENABLED = "reminder_enabled"

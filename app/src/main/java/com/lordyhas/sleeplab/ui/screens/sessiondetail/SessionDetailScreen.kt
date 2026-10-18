@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.lordyhas.sleeplab.ui.components.FactorPicker
 import com.lordyhas.sleeplab.ui.components.MorningRatingSelector
 import com.lordyhas.sleeplab.ui.components.rememberClipPlayer
 import androidx.compose.material.icons.filled.PlayArrow
@@ -120,6 +121,8 @@ fun SessionDetailScreen(
     }
     val viewModel: SessionDetailViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
+    val factors by viewModel.factors.collectAsState()
+    val nightFactorIds by viewModel.factorIds.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     val clipPlayer = rememberClipPlayer()
     var showNoteDialog by remember { mutableStateOf(false) }
@@ -260,6 +263,16 @@ fun SessionDetailScreen(
                             HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
                             Spacer(Modifier.height(4.dp))
                             NoteRow(note = session.note, onEdit = { showNoteDialog = true })
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                            Spacer(Modifier.height(12.dp))
+                            Text(stringResource(R.string.night_factors), style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.height(8.dp))
+                            FactorPicker(
+                                factors = factors,
+                                selectedIds = nightFactorIds,
+                                onToggle = viewModel::toggleFactor,
+                                onAddCustom = viewModel::addCustomFactor
+                            )
                         }
                     }
 

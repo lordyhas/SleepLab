@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.lordyhas.sleeplab.SleepLabApp
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
+import com.lordyhas.sleeplab.data.local.entity.FactorEntity
+import com.lordyhas.sleeplab.data.repository.FactorRepository
 import com.lordyhas.sleeplab.data.repository.SettingsRepository
 import com.lordyhas.sleeplab.data.repository.SleepSessionRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
@@ -26,13 +28,16 @@ data class HomeUiState(
     val averageSnoreDurationMinutes: Int = 0,
     val bestNightSnoreMinutes: Int? = null,
     val activeTreatments: List<TreatmentEntity> = emptyList(),
+    val factors: List<FactorEntity> = emptyList(),
+    val tonightFactorIds: Set<Int> = emptySet(),
     val selectedTreatmentId: Int? = null
 )
 
 class HomeViewModel(
     private val sessionRepository: SleepSessionRepository = SleepLabApp.instance.sleepSessionRepository,
     private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository,
-    private val settingsRepository: SettingsRepository = SleepLabApp.instance.settingsRepository
+    private val settingsRepository: SettingsRepository = SleepLabApp.instance.settingsRepository,
+    private val factorRepository: FactorRepository = SleepLabApp.instance.factorRepository
 ) : ViewModel() {
 
     val trackingState: StateFlow<TrackingState> = SleepTrackingService.trackingState
@@ -40,8 +45,10 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = combine(
         sessionRepository.getAllSessions(),
         treatmentRepository.getActiveTreatments(),
-        settingsRepository.treatmentChoice
-    ) { sessions, activeTreatments, choice ->
+        settingsRepository.treatmentChoice,
+        factorRepository.getAllFactors(),
+        settingsRepository.tonightFactorIds
+    ) { sessions, activeTreatments, choice, factors, tonightFactorIds ->
         val completedSessions = sessions.filter { it.endTime > 0 }
         val latest = completedSessions.firstOrNull()
         val latestTreatment = latest?.treatmentId?.let { tid ->
@@ -59,6 +66,8 @@ class HomeViewModel(
             averageSnoreDurationMinutes = avgSnoreSec / 60,
             bestNightSnoreMinutes = completedSessions.minOfOrNull { it.totalSnoreDurationSeconds }?.div(60),
             activeTreatments = activeTreatments,
+            factors = factors,
+            tonightFactorIds = tonightFactorIds,
             selectedTreatmentId = SettingsRepository.resolveTreatmentId(choice, activeTreatments)
         )
     }.stateIn(
@@ -69,6 +78,18 @@ class HomeViewModel(
 
     fun rateNight(sessionId: Int, rating: Int) {
         viewModelScope.launch { sessionRepository.updateMorningRating(sessionId, rating) }
+    }
+
+    fun toggleTonightFactor(factorId: Int) {
+        val current = settingsRepository.tonightFactorIds.value
+        settingsRepository.setTonightFactorIds(if (factorId in current) current - factorId else current + factorId)
+    }
+
+    fun addCustomFactor(name: String) {
+        viewModelScope.launch {
+            val id = factorRepository.addCustomFactor(name)
+            settingsRepository.setTonightFactorIds(settingsRepository.tonightFactorIds.value + id)
+        }
     }
 
     fun selectTreatment(treatmentId: Int?) {

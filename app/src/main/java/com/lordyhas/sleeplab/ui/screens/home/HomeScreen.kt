@@ -67,6 +67,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
+import com.lordyhas.sleeplab.ui.components.FactorPicker
 import com.lordyhas.sleeplab.ui.components.GaugeRing
 import com.lordyhas.sleeplab.ui.components.GlassCard
 import com.lordyhas.sleeplab.ui.components.MetricTile
@@ -150,6 +151,21 @@ fun HomeScreen(
                     selectedId = uiState.selectedTreatmentId,
                     onSelect = viewModel::selectTreatment,
                     onManageClick = onNavigateToTreatments
+                )
+            }
+            item {
+                SectionHeader(stringResource(R.string.tonight_factors))
+                Text(
+                    stringResource(R.string.tonight_factors_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                FactorPicker(
+                    factors = uiState.factors,
+                    selectedIds = uiState.tonightFactorIds,
+                    onToggle = viewModel::toggleTonightFactor,
+                    onAddCustom = viewModel::addCustomFactor
                 )
             }
         }
