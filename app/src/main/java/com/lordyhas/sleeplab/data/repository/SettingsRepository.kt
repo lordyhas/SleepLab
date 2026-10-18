@@ -21,6 +21,14 @@ class SettingsRepository(context: Context) {
     /** Measure the room's noise at the start of each night and derive the threshold from it. */
     val autoCalibrate: StateFlow<Boolean> = _autoCalibrate.asStateFlow()
 
+    private val _clipsEnabled = MutableStateFlow(prefs.getBoolean(KEY_CLIPS_ENABLED, false))
+    /** Save short audio clips of detected snores (opt-in). */
+    val clipsEnabled: StateFlow<Boolean> = _clipsEnabled.asStateFlow()
+
+    private val _clipRetentionDays = MutableStateFlow(prefs.getInt(KEY_CLIP_RETENTION_DAYS, DEFAULT_CLIP_RETENTION_DAYS))
+    /** Clips older than this are deleted automatically; 0 = keep forever. */
+    val clipRetentionDays: StateFlow<Int> = _clipRetentionDays.asStateFlow()
+
     private val _treatmentChoice = MutableStateFlow(prefs.getInt(KEY_TREATMENT_CHOICE, CHOICE_UNSET))
     /**
      * The treatment the user picked for tonight: a treatment id, [CHOICE_NONE] for an explicit
@@ -38,6 +46,16 @@ class SettingsRepository(context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_CALIBRATE, enabled).apply()
     }
 
+    fun setClipsEnabled(enabled: Boolean) {
+        _clipsEnabled.value = enabled
+        prefs.edit().putBoolean(KEY_CLIPS_ENABLED, enabled).apply()
+    }
+
+    fun setClipRetentionDays(days: Int) {
+        _clipRetentionDays.value = days
+        prefs.edit().putInt(KEY_CLIP_RETENTION_DAYS, days).apply()
+    }
+
     fun setTreatmentChoice(treatmentId: Int?) {
         val choice = treatmentId ?: CHOICE_NONE
         _treatmentChoice.value = choice
@@ -46,6 +64,7 @@ class SettingsRepository(context: Context) {
 
     companion object {
         const val DEFAULT_THRESHOLD_DB = 50f
+        const val DEFAULT_CLIP_RETENTION_DAYS = 14
         const val CHOICE_UNSET = -2
         const val CHOICE_NONE = -1
 
@@ -53,6 +72,8 @@ class SettingsRepository(context: Context) {
         private const val KEY_THRESHOLD_DB = "threshold_db"
         private const val KEY_TREATMENT_CHOICE = "treatment_choice"
         private const val KEY_AUTO_CALIBRATE = "auto_calibrate"
+        private const val KEY_CLIPS_ENABLED = "clips_enabled"
+        private const val KEY_CLIP_RETENTION_DAYS = "clip_retention_days"
 
         /**
          * Turns a stored choice into the treatment id to record with, falling back to the first

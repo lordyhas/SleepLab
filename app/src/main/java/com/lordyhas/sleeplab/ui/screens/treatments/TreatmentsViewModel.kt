@@ -6,7 +6,10 @@ import com.lordyhas.sleeplab.SleepLabApp
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
 import com.lordyhas.sleeplab.data.repository.SettingsRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -26,6 +29,38 @@ class TreatmentsViewModel(
     val thresholdDb: StateFlow<Float> = settingsRepository.thresholdDb
 
     val autoCalibrate: StateFlow<Boolean> = settingsRepository.autoCalibrate
+
+    val clipsEnabled: StateFlow<Boolean> = settingsRepository.clipsEnabled
+    val clipRetentionDays: StateFlow<Int> = settingsRepository.clipRetentionDays
+
+    private val clipRepository = SleepLabApp.instance.clipRepository
+    private val _clipStorageBytes = MutableStateFlow(0L)
+    val clipStorageBytes: StateFlow<Long> = _clipStorageBytes.asStateFlow()
+
+    init {
+        refreshClipStorage()
+    }
+
+    fun refreshClipStorage() {
+        viewModelScope.launch(Dispatchers.IO) { _clipStorageBytes.value = clipRepository.storageBytes() }
+    }
+
+    fun setClipsEnabled(enabled: Boolean) = settingsRepository.setClipsEnabled(enabled)
+
+    fun setClipRetentionDays(days: Int) {
+        settingsRepository.setClipRetentionDays(days)
+        viewModelScope.launch(Dispatchers.IO) {
+            clipRepository.purgeExpired()
+            _clipStorageBytes.value = clipRepository.storageBytes()
+        }
+    }
+
+    fun deleteAllClips() {
+        viewModelScope.launch(Dispatchers.IO) {
+            clipRepository.deleteAll()
+            _clipStorageBytes.value = 0L
+        }
+    }
 
     fun setAutoCalibrate(enabled: Boolean) {
         settingsRepository.setAutoCalibrate(enabled)

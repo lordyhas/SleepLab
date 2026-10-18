@@ -144,7 +144,7 @@
     <string name="notif_text">Duration %1$s · Snores: %2$d</string>
     <string name="notif_stop">Stop</string>
     <string name="mic_permission_title">Microphone needed</string>
-    <string name="mic_permission_message">SleepLab listens for snoring through the microphone. Audio is analysed on the device and never recorded or sent anywhere. Allow microphone access in Settings to start tracking.</string>
+    <string name="mic_permission_message">SleepLab listens for snoring through the microphone. Audio is analysed on the device and never leaves it; short snore clips are kept only if you turn recordings on. Allow microphone access in Settings to start tracking.</string>
     <string name="open_settings">Open settings</string>
     <!-- Phase 1: calibration, notes, rating, delete -->
     <string name="calibrating_room">Measuring room noise… %1$d s</string>
@@ -176,4 +176,20 @@
     <string name="sound_snoring">Snoring</string>
     <string name="sound_snore_like">Snore-like sound</string>
     <string name="sound_other_noise">Other noise · ignored</string>
+    <!-- Phase 3: audio clips -->
+    <string name="clips_title">Snore recordings</string>
+    <string name="clips_desc">Save short clips of your loudest snores so you can listen back. They never leave this phone.</string>
+    <string name="clips_consent_title">Save snore recordings?</string>
+    <string name="clips_consent_message">When a snore is detected, SleepLab keeps about 5 seconds of audio around it, up to 30 of the loudest per night. Clips stay on this phone only: they are excluded from backups, never uploaded, and deleted automatically after the period you choose. Other sounds are not saved unless they were mistaken for snoring.</string>
+    <string name="clips_consent_confirm">Turn on</string>
+    <string name="clips_keep_for">Keep recordings for</string>
+    <string name="clips_days">%1$d days</string>
+    <string name="clips_forever">Forever</string>
+    <string name="clips_storage">Using %1$s on this phone</string>
+    <string name="clips_delete_all">Delete all</string>
+    <string name="clips_delete_all_title">Delete all recordings?</string>
+    <string name="clips_delete_all_message">Every saved snore clip will be removed. Your nights and statistics are kept.</string>
+    <string name="play_clip">Play clip</string>
+    <string name="stop_clip">Stop clip</string>
+    <string name="tracking_clips_on">Saving snore clips</string>
 </resources>

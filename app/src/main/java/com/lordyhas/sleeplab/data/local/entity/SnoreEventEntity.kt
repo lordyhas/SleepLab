@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.data.local.entity
+package com.lordyhas.sleeplab.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -23,5 +23,10 @@ data class SnoreEventEntity(
     val sessionId: Int,
     val timestamp: Long = System.currentTimeMillis(),
     val amplitude: Float, // Sound level in dB
-    val durationSeconds: Int = 1
+    val durationSeconds: Int = 1,
+    /** Absolute path of the saved audio clip, if clips were enabled and this snore was kept. */
+    val clipPath: String? = null
 )
+
+/** Event id + clip path, for clip maintenance queries. */
+data class EventClip(val id: Int, val clipPath: String)

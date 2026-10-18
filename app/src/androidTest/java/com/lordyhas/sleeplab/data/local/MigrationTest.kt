@@ -90,6 +90,25 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate4To5_addsEmptyClipPath() {
+        helper.createDatabase(dbName, 4).apply {
+            execSQL("INSERT INTO sleep_sessions (id, startTime, endTime, totalSnoreDurationSeconds, snoreIntensityScore) VALUES (1, 1000, 9000, 0, 0.0)")
+            execSQL("INSERT INTO snore_events (id, sessionId, timestamp, amplitude, durationSeconds) VALUES (5, 1, 2000, 58.0, 2)")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5)
+
+        db.query("SELECT amplitude, durationSeconds, clipPath FROM snore_events WHERE id = 5").use { c ->
+            c.moveToFirst()
+            assertEquals(58f, c.getFloat(0))
+            assertEquals(2, c.getInt(1))
+            assertEquals(true, c.isNull(2))
+        }
+        db.close()
+    }
+
+    @Test
     fun migrate2To4_fullUpgradePathFromRelease() {
         helper.createDatabase(dbName, 2).apply {
             execSQL(

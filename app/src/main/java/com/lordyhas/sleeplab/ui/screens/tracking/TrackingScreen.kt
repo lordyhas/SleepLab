@@ -201,6 +201,15 @@ private fun ActiveTrackingContent(
             )
             Spacer(Modifier.height(10.dp))
             CalibrationStatus(state = state, modifier = Modifier.align(Alignment.Start))
+            if (state.clipsEnabled) {
+                Spacer(Modifier.height(8.dp))
+                Pill(
+                    text = stringResource(R.string.tracking_clips_on),
+                    color = SnoreMedium,
+                    icon = Icons.Default.GraphicEq,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
 

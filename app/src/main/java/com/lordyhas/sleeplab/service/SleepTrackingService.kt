@@ -17,7 +17,12 @@ import androidx.core.content.ContextCompat
 import com.lordyhas.sleeplab.MainActivity
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.SleepLabApp
+import com.lordyhas.sleeplab.service.clips.AacClipEncoder
+import com.lordyhas.sleeplab.service.clips.ClipBudget
 import com.lordyhas.sleeplab.service.detection.SnoreBurst
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import java.util.concurrent.ConcurrentHashMap
 import com.lordyhas.sleeplab.service.detection.SnoreScore
 import com.lordyhas.sleeplab.service.detection.SoundClass
 import com.lordyhas.sleeplab.ui.util.formatClock
@@ -45,6 +50,15 @@ class SleepTrackingService : Service() {
     private var currentSessionId: Int? = null
     private var currentTreatmentId: Int? = null
     private var startTimeMillis: Long = 0L
+
+    /** Clip saving runs one at a time, so evictions and saves never race. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val clipDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private var clipBudget = ClipBudget()
+    /** Database id of each snore of the night, keyed by burst start (inserted asynchronously). */
+    private val eventIds = ConcurrentHashMap<Long, CompletableDeferred<Int>>()
+    /** Saved clip file per snore, keyed by burst start. */
+    private val clipPaths = HashMap<Long, String>()
 
     /** Detected snores of the current night, for the score computed when it ends. */
     private val scoreEpisodes = mutableListOf<SnoreScore.Episode>()
@@ -136,6 +150,10 @@ class SleepTrackingService : Service() {
         startTimeMillis = System.currentTimeMillis()
         currentTreatmentId = treatmentId
         synchronized(scoreEpisodes) { scoreEpisodes.clear() }
+        clipBudget = ClipBudget()
+        eventIds.clear()
+        clipPaths.clear()
+        val captureClips = SleepLabApp.instance.settingsRepository.clipsEnabled.value
         sampleAccumulator.drainAverage()
 
         // Acquire WakeLock
@@ -184,7 +202,8 @@ class SleepTrackingService : Service() {
                     isCalibrating = autoCalibrate,
                     calibrationProgress = 0f,
                     soundClass = SoundClass.QUIET,
-                    lastSnoreAt = 0L
+                    lastSnoreAt = 0L,
+                    clipsEnabled = captureClips
                 )
             }
 
@@ -201,6 +220,10 @@ class SleepTrackingService : Service() {
                 },
                 onThresholdAdapted = { newThreshold, newFloor ->
                     _trackingState.update { it.copy(thresholdDb = newThreshold, noiseFloorDb = newFloor) }
+                },
+                captureClips = captureClips,
+                onClipAudio = { burst, samples, sampleRate ->
+                    handleClipAudio(sessionId, burst, samples, sampleRate)
                 },
                 onCalibrationProgress = { progress ->
                     _trackingState.update { it.copy(calibrationProgress = progress) }
@@ -271,13 +294,36 @@ class SleepTrackingService : Service() {
                 lastSnoreAt = burst.startMs + burst.durationMs
             )
         }
+        val id = CompletableDeferred<Int>()
+        eventIds[burst.startMs] = id
         serviceScope.launch(Dispatchers.IO) {
-            SleepLabApp.instance.snoreEventRepository.recordSnoreEvent(
+            val eventId = SleepLabApp.instance.snoreEventRepository.recordSnoreEvent(
                 sessionId = sessionId,
                 amplitude = burst.peakDb,
                 durationSeconds = durationSec,
                 timestamp = burst.startMs
             )
+            id.complete(eventId.toInt())
+        }
+    }
+
+    private fun handleClipAudio(sessionId: Int, burst: SnoreBurst, samples: ShortArray, sampleRate: Int) {
+        serviceScope.launch(clipDispatcher) {
+            val decision = clipBudget.offer(burst.startMs, burst.peakDb)
+            if (decision !is ClipBudget.Decision.Accept) return@launch
+            val clips = SleepLabApp.instance.clipRepository
+
+            decision.evictKeys.forEach { key ->
+                val evictedId = eventIds[key]?.await() ?: return@forEach
+                clips.detach(evictedId, clipPaths.remove(key))
+            }
+
+            val file = clips.newClipFile(sessionId, burst.startMs)
+            if (AacClipEncoder.encode(samples, sampleRate, file)) {
+                val eventId = eventIds[burst.startMs]?.await() ?: return@launch
+                clips.attach(eventId, file)
+                clipPaths[burst.startMs] = file.absolutePath
+            }
         }
     }
 
@@ -333,6 +379,8 @@ class SleepTrackingService : Service() {
                     currentDb = 0f
                 )
             }
+
+            SleepLabApp.instance.clipRepository.purgeExpired()
 
             releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -451,7 +499,9 @@ data class TrackingState(
     /** What the latest frame sounds like (quiet / other noise / snore-like). */
     val soundClass: SoundClass = SoundClass.QUIET,
     /** End time of the last confirmed snore, 0 if none yet. */
-    val lastSnoreAt: Long = 0L
+    val lastSnoreAt: Long = 0L,
+    /** Whether snore clips are being saved tonight. */
+    val clipsEnabled: Boolean = false
 ) {
     companion object {
         /** Live waveform length: 60 frames of 100 ms. */
