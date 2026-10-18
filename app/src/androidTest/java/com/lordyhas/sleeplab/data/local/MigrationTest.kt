@@ -62,6 +62,54 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate3To4_marksExistingScoresAsLegacy() {
+        helper.createDatabase(dbName, 3).apply {
+            execSQL(
+                "INSERT INTO sleep_sessions (id, startTime, endTime, totalSnoreDurationSeconds, snoreIntensityScore, thresholdDb, noiseFloorDb) " +
+                    "VALUES (3, 1000, 9000, 60, 52.0, 47.0, 35.0)"
+            )
+            execSQL("INSERT INTO noise_samples (id, sessionId, timestamp, decibelLevel) VALUES (1, 3, 2000, 38.0)")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbName, 4, true, MIGRATION_3_4)
+
+        db.query("SELECT snoreIntensityScore, scoreVersion, thresholdDb, noiseFloorDb FROM sleep_sessions WHERE id = 3").use { c ->
+            c.moveToFirst()
+            assertEquals(52f, c.getFloat(0))
+            assertEquals(1, c.getInt(1))
+            assertEquals(47f, c.getFloat(2))
+            assertEquals(35f, c.getFloat(3))
+        }
+        db.query("SELECT decibelLevel, thresholdDb FROM noise_samples WHERE id = 1").use { c ->
+            c.moveToFirst()
+            assertEquals(38f, c.getFloat(0))
+            assertEquals(true, c.isNull(1))
+        }
+        db.close()
+    }
+
+    @Test
+    fun migrate2To4_fullUpgradePathFromRelease() {
+        helper.createDatabase(dbName, 2).apply {
+            execSQL(
+                "INSERT INTO sleep_sessions (id, startTime, endTime, totalSnoreDurationSeconds, snoreIntensityScore) " +
+                    "VALUES (1, 1000, 9000, 30, 48.0)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbName, 4, true, *ALL_MIGRATIONS)
+
+        db.query("SELECT thresholdDb, scoreVersion FROM sleep_sessions WHERE id = 1").use { c ->
+            c.moveToFirst()
+            assertEquals(50f, c.getFloat(0))
+            assertEquals(1, c.getInt(1))
+        }
+        db.close()
+    }
+
+    @Test
     fun deleteNight_removesSessionWithItsEventsAndSamples() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()

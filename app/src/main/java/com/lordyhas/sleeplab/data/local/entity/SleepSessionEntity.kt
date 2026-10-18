@@ -33,5 +33,11 @@ data class SleepSessionEntity(
     val noiseFloorDb: Float? = null,
     val note: String? = null,
     /** How the user felt in the morning, 1 (bad) to 5 (great); null if not rated. */
-    val morningRating: Int? = null
+    val morningRating: Int? = null,
+    /**
+     * Formula behind [snoreIntensityScore]: 1 = legacy `(avgDb + maxDb) / 2`,
+     * 2 = time-weighted score from `SnoreScore`. Nights before v4 of the database are 1.
+     */
+    @ColumnInfo(defaultValue = "1")
+    val scoreVersion: Int = 1
 )

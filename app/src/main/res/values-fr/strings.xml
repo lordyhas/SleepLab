@@ -173,4 +173,10 @@
     <string name="delete_night">Supprimer la nuit</string>
     <string name="delete_night_title">Supprimer cette nuit ?</string>
     <string name="delete_night_message">Ses événements de ronflement et données sonores seront définitivement supprimés.</string>
+    <!-- Phase 2 : qualité de détection -->
+    <string name="snore_score_label">Score ronflement</string>
+    <string name="legacy_score_hint">Calculé avec l’ancienne formule (avant la détection améliorée)</string>
+    <string name="sound_snoring">Ronflement</string>
+    <string name="sound_snore_like">Son de type ronflement</string>
+    <string name="sound_other_noise">Autre bruit · ignoré</string>
 </resources>

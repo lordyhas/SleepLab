@@ -7,19 +7,19 @@ Legend: **DB** = needs a Room migration · **Test** = what to check on the phone
 
 ---
 
-## Phase 1 — Foundations (`feat/foundations`)
+## Phase 1 — Foundations (`feat/foundations`) ✅ merged in #6
 
 Goal: make data safe to keep, and make every night editable, before adding anything that changes the schema.
 
-- [ ] **Real Room migrations** — export schemas to `app/schemas/`, drop `fallbackToDestructiveMigration`
+- [x] **Real Room migrations** — export schemas to `app/schemas/`, drop `fallbackToDestructiveMigration`
       for v2+, add `MIGRATION_2_3`, plus an instrumented migration test.
-- [ ] **Per-night detection settings** (DB) — store `thresholdDb` and `noiseFloorDb` on each session;
+- [x] **Per-night detection settings** (DB) — store `thresholdDb` and `noiseFloorDb` on each session;
       Session detail draws the threshold that was actually used that night.
-- [ ] **Delete a night** — from Session detail, with confirmation; removes its events and samples.
-- [ ] **Night notes** (DB) — free-text note per night, editable from Session detail.
-- [ ] **Morning rating** (DB) — 1–5 "How did you sleep?" prompt on Home after a night, also editable
+- [x] **Delete a night** — from Session detail, with confirmation; removes its events and samples.
+- [x] **Night notes** (DB) — free-text note per night, editable from Session detail.
+- [x] **Morning rating** (DB) — 1–5 "How did you sleep?" prompt on Home after a night, also editable
       in Session detail.
-- [ ] **Room calibration** (pulled forward from Phase 2) — measure room noise for the first 30 s of
+- [x] **Room calibration** (pulled forward from Phase 2) — measure room noise for the first 30 s of
       each night, set threshold = noise floor + margin; "Auto" toggle with manual override.
 
 **Test:** upgrade over the current build keeps old nights · start a night → "Calibrating" for ~30 s,

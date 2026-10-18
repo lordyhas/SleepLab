@@ -5,24 +5,37 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
+import com.lordyhas.sleeplab.service.detection.AdaptiveFloor
+import com.lordyhas.sleeplab.service.detection.AudioFeatureExtractor
+import com.lordyhas.sleeplab.service.detection.SnoreBurst
+import com.lordyhas.sleeplab.service.detection.SnoreDetector
+import com.lordyhas.sleeplab.service.detection.SoundClass
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.log10
-import kotlin.math.sqrt
 
+/**
+ * Reads the microphone and turns it into snore events.
+ *
+ * Audio is analysed in fixed 100 ms frames: [AudioFeatureExtractor] measures level and low-band
+ * ratio, [NoiseFloorCalibrator] (optional) measures the room first, [SnoreDetector] finds rhythmic
+ * low-pitched bursts, and [AdaptiveFloor] keeps the threshold following the room when calibrated.
+ * Nothing is stored or sent: only the derived numbers leave this class.
+ */
 class AudioAnalyzer(
     private val scope: CoroutineScope,
-    private var thresholdDb: Float = 50f,
+    thresholdDb: Float = 50f,
     /** When set, detection waits until the room's noise floor is measured, then uses its threshold. */
     private val calibrator: NoiseFloorCalibrator? = null,
-    private val onDecibelUpdate: (currentDb: Float) -> Unit,
-    private val onSnoreDetected: (amplitudeDb: Float, durationSeconds: Int) -> Unit,
+    private val onFrame: (db: Float, soundClass: SoundClass) -> Unit,
+    /** A confirmed snore, with the threshold that was in force when it was detected. */
+    private val onSnoreDetected: (burst: SnoreBurst, thresholdDb: Float) -> Unit,
     private val onCalibrationProgress: (progress: Float) -> Unit = {},
-    private val onCalibrated: (CalibrationResult) -> Unit = {}
+    private val onCalibrated: (CalibrationResult) -> Unit = {},
+    private val onThresholdAdapted: (thresholdDb: Float, noiseFloorDb: Float) -> Unit = { _, _ -> }
 ) {
 
     private var audioRecord: AudioRecord? = null
@@ -30,15 +43,16 @@ class AudioAnalyzer(
     @Volatile
     private var isRecording = false
 
+    private val detector = SnoreDetector(thresholdDb)
+    private var adaptiveFloor: AdaptiveFloor? = null
+
     companion object {
         private const val TAG = "AudioAnalyzer"
         private const val SAMPLE_RATE = 16000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-    }
-
-    fun updateThreshold(newThresholdDb: Float) {
-        this.thresholdDb = newThresholdDb
+        private const val FRAME_MS = 100L
+        private const val FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS / 1000).toInt()
     }
 
     @SuppressLint("MissingPermission")
@@ -56,7 +70,8 @@ class AudioAnalyzer(
             return
         }
 
-        val bufferSize = (minBufferSize * 2).coerceAtLeast(1024)
+        // Internal buffer in bytes: room for several frames so reads never overrun.
+        val bufferBytes = maxOf(minBufferSize * 2, FRAME_SAMPLES * 2 * 4)
 
         try {
             audioRecord = AudioRecord(
@@ -64,7 +79,7 @@ class AudioAnalyzer(
                 SAMPLE_RATE,
                 CHANNEL_CONFIG,
                 AUDIO_FORMAT,
-                bufferSize
+                bufferBytes
             )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
@@ -78,7 +93,7 @@ class AudioAnalyzer(
             isRecording = true
 
             recordingJob = scope.launch(Dispatchers.IO) {
-                processAudioStream(bufferSize)
+                processAudioStream()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Exception starting AudioRecord", e)
@@ -86,69 +101,51 @@ class AudioAnalyzer(
         }
     }
 
-    private suspend fun processAudioStream(bufferSize: Int) {
-        val audioBuffer = ShortArray(bufferSize)
-        
-        var consecutiveSnoreWindows = 0
-        var snoreMaxDb = 0f
-        val windowDurationMs = (bufferSize.toFloat() / SAMPLE_RATE * 1000).toLong().coerceAtLeast(100)
+    private suspend fun processAudioStream() {
+        val frame = ShortArray(FRAME_SAMPLES)
+        val extractor = AudioFeatureExtractor(SAMPLE_RATE)
+        val streamStart = System.currentTimeMillis()
+        var framesProcessed = 0L
 
         while (isRecording && scope.isActive) {
             val record = audioRecord ?: break
-            val readCount = record.read(audioBuffer, 0, bufferSize)
+            // Blocking read until a whole frame is available
+            var filled = 0
+            while (filled < FRAME_SAMPLES && isRecording) {
+                val read = record.read(frame, filled, FRAME_SAMPLES - filled)
+                if (read > 0) filled += read else { delay(20); if (read < 0) break }
+            }
+            if (filled < FRAME_SAMPLES) continue
 
-            if (readCount > 0) {
-                // Calculate RMS
-                var sumSquare = 0.0
-                for (i in 0 until readCount) {
-                    val sample = audioBuffer[i]
-                    sumSquare += sample * sample
-                }
-                val rms = sqrt(sumSquare / readCount)
+            val timestamp = streamStart + framesProcessed * FRAME_MS
+            framesProcessed++
+            val features = extractor.extract(frame, 0, FRAME_SAMPLES)
 
-                // Convert RMS to estimated dB SPL (0 to ~95 dB)
-                // 32767 is max amplitude for 16-bit PCM
-                val db = if (rms > 1.0) {
-                    val rawDb = 20.0 * log10(rms / 1.0) // 0 to ~90.3 dB
-                    rawDb.toFloat().coerceIn(0f, 100f)
-                } else {
-                    0f
-                }
-
-                onDecibelUpdate(db)
-
-                if (calibrator != null && !calibrator.isComplete) {
-                    calibrator.add(db, (readCount * 1000L / SAMPLE_RATE).coerceAtLeast(1L))
-                    onCalibrationProgress(calibrator.progress)
-                    if (calibrator.isComplete) {
-                        calibrator.result()?.let { result ->
-                            thresholdDb = result.thresholdDb
-                            onCalibrated(result)
-                        }
-                    }
-                    continue // no snore detection while measuring the room
-                }
-
-                // Snore detection algorithm:
-                // If dB is above threshold, we count consecutive active windows
-                if (db >= thresholdDb) {
-                    consecutiveSnoreWindows++
-                    if (db > snoreMaxDb) {
-                        snoreMaxDb = db
-                    }
-                } else {
-                    if (consecutiveSnoreWindows > 0) {
-                        val durationSeconds = ((consecutiveSnoreWindows * windowDurationMs) / 1000).toInt()
-                        // Snore event is recognized if it lasts between 1s and 8s
-                        if (durationSeconds >= 1) {
-                            onSnoreDetected(snoreMaxDb, durationSeconds.coerceIn(1, 10))
-                        }
-                        consecutiveSnoreWindows = 0
-                        snoreMaxDb = 0f
+            if (calibrator != null && !calibrator.isComplete) {
+                onFrame(features.db, SoundClass.QUIET)
+                calibrator.add(features.db, FRAME_MS)
+                onCalibrationProgress(calibrator.progress)
+                if (calibrator.isComplete) {
+                    calibrator.result()?.let { result ->
+                        detector.thresholdDb = result.thresholdDb
+                        adaptiveFloor = AdaptiveFloor(initialFloorDb = result.noiseFloorDb)
+                        onCalibrated(result)
                     }
                 }
-            } else {
-                delay(50)
+                continue // no snore detection while measuring the room
+            }
+
+            onFrame(features.db, detector.classify(features))
+
+            adaptiveFloor?.let { floor ->
+                if (floor.onFrame(features.db, FRAME_MS)) {
+                    detector.thresholdDb = floor.thresholdDb
+                    onThresholdAdapted(floor.thresholdDb, floor.floorDb)
+                }
+            }
+
+            detector.onFrame(timestamp, FRAME_MS, features).forEach { burst ->
+                onSnoreDetected(burst, detector.thresholdDb)
             }
         }
     }

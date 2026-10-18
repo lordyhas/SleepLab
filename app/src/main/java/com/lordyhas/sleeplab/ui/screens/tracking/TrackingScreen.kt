@@ -77,6 +77,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.service.NoiseFloorCalibrator
 import com.lordyhas.sleeplab.service.TrackingState
+import com.lordyhas.sleeplab.service.detection.SoundClass
 import com.lordyhas.sleeplab.ui.components.GaugeRing
 import com.lordyhas.sleeplab.ui.components.GlassCard
 import com.lordyhas.sleeplab.ui.components.HoldToConfirmButton
@@ -89,6 +90,7 @@ import com.lordyhas.sleeplab.ui.theme.MoonGlow
 import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
 import com.lordyhas.sleeplab.ui.theme.SnoreHigh
+import com.lordyhas.sleeplab.ui.theme.SnoreLow
 import com.lordyhas.sleeplab.ui.theme.SnoreMedium
 import com.lordyhas.sleeplab.ui.theme.snoreLevelColor
 import com.lordyhas.sleeplab.ui.util.formatClock
@@ -98,6 +100,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.ceil
+
+/** How long "Snoring" stays shown after the last confirmed snore. */
+private const val SNORING_DISPLAY_MS = 8_000L
 
 /** dB range mapped onto the live gauge. */
 private const val GAUGE_MIN_DB = 20f
@@ -156,7 +161,17 @@ private fun ActiveTrackingContent(
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val dbColor = snoreLevelColor(state.currentDb)
     val thresholdDb = state.thresholdDb
-    val aboveThreshold = state.currentDb >= thresholdDb
+    // Recently confirmed snore beats the per-frame classification
+    val isSnoring = state.lastSnoreAt > 0 &&
+        System.currentTimeMillis() - state.lastSnoreAt < SNORING_DISPLAY_MS
+    val (soundLabel, soundColor, soundIcon) = when {
+        isSnoring -> Triple(R.string.sound_snoring, SnoreHigh, Icons.Default.GraphicEq)
+        state.soundClass == SoundClass.SNORE_LIKE ->
+            Triple(R.string.sound_snore_like, SnoreMedium, Icons.Default.GraphicEq)
+        state.soundClass == SoundClass.NOISE ->
+            Triple(R.string.sound_other_noise, SleepIndigoLight, Icons.AutoMirrored.Filled.VolumeUp)
+        else -> Triple(R.string.level_quiet, SnoreLow, Icons.Default.Bedtime)
+    }
 
     var showHoldHint by remember { mutableStateOf(false) }
     LaunchedEffect(showHoldHint) {
@@ -219,9 +234,9 @@ private fun ActiveTrackingContent(
                         if (!state.isCalibrating) {
                             Spacer(Modifier.height(8.dp))
                             Pill(
-                                text = stringResource(if (aboveThreshold) R.string.level_above_threshold else R.string.level_quiet),
-                                color = dbColor,
-                                icon = if (aboveThreshold) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.Bedtime
+                                text = stringResource(soundLabel),
+                                color = soundColor,
+                                icon = soundIcon
                             )
                         }
                     }
@@ -388,7 +403,7 @@ private fun WaveformVisualizer(
 
     GlassCard(modifier = modifier, contentPadding = PaddingValues(12.dp)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val totalBars = 40
+            val totalBars = TrackingState.HISTORY_FRAMES
             val slot = size.width / totalBars
             val barWidth = slot * 0.6f
             val padded = List((totalBars - recentHistory.size).coerceAtLeast(0)) { 0f } +

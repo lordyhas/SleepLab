@@ -170,4 +170,10 @@
     <string name="delete_night">Delete night</string>
     <string name="delete_night_title">Delete this night?</string>
     <string name="delete_night_message">Its snore events and noise data will be permanently removed.</string>
+    <!-- Phase 2: detection quality -->
+    <string name="snore_score_label">Snore score</string>
+    <string name="legacy_score_hint">Scored with the older formula (before improved detection)</string>
+    <string name="sound_snoring">Snoring</string>
+    <string name="sound_snore_like">Snore-like sound</string>
+    <string name="sound_other_noise">Other noise · ignored</string>
 </resources>

@@ -8,11 +8,12 @@ class NoiseSampleRepository(private val noiseSampleDao: NoiseSampleDao) {
     suspend fun getSamplesForSession(sessionId: Int): List<NoiseSampleEntity> =
         noiseSampleDao.getSamplesForSession(sessionId)
 
-    suspend fun recordSample(sessionId: Int, decibelLevel: Float): Long {
+    suspend fun recordSample(sessionId: Int, decibelLevel: Float, thresholdDb: Float? = null): Long {
         val sample = NoiseSampleEntity(
             sessionId = sessionId,
             timestamp = System.currentTimeMillis(),
-            decibelLevel = decibelLevel
+            decibelLevel = decibelLevel,
+            thresholdDb = thresholdDb
         )
         return noiseSampleDao.insertSample(sample)
     }

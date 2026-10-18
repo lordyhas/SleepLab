@@ -36,12 +36,17 @@ Single-module Android app (`app/`) using MVVM + Clean Architecture. Three layers
 - **DAOs**: One per entity under `data/local/dao/`
 - **Repositories**: Thin wrappers around DAOs under `data/repository/`
 - **`SettingsRepository`**: SharedPreferences-backed `StateFlow`s for user preferences — manual threshold, auto-calibrate toggle, and tonight's treatment choice (shared by Home and Tracking; resolve it with `SettingsRepository.resolveTreatmentId`)
-- **`AppDatabase`**: Room DB v3, named `snore_tracker_database`. Schemas are exported to `app/schemas/` (commit them). **Every schema change needs a `Migration`** in `data/local/Migrations.kt`, appended to `ALL_MIGRATIONS` and covered by `MigrationTest` (androidTest). Only pre-release v1 databases fall back to destructive migration.
-- **Per-night settings**: `SleepSessionEntity` stores the `thresholdDb` actually used and the measured `noiseFloorDb` (null = manual threshold), plus `note` and `morningRating` (1–5). Delete a night with `SleepSessionDao.deleteNight` (removes its events and samples in one transaction).
+- **`AppDatabase`**: Room DB v4, named `snore_tracker_database`. Schemas are exported to `app/schemas/` (commit them). **Every schema change needs a `Migration`** in `data/local/Migrations.kt`, appended to `ALL_MIGRATIONS` and covered by `MigrationTest` (androidTest). Only pre-release v1 databases fall back to destructive migration.
+- **Per-night settings**: `SleepSessionEntity` stores the `thresholdDb` actually used and the measured `noiseFloorDb` (null = manual threshold), plus `note`, `morningRating` (1–5) and `scoreVersion` (1 = legacy `(avgDb+maxDb)/2`, 2 = `SnoreScore`; show scores via `ui/util/NightScore.kt`, never assume one formula). Each `NoiseSample` stores the `thresholdDb` in force (null before v4). Delete a night with `SleepSessionDao.deleteNight` (removes its events and samples in one transaction).
 
 ### Service layer (`service/`)
 - **`SleepTrackingService`**: Foreground service that manages the sleep session lifecycle (creates/completes `SleepSession`, records `SnoreEvent` and `NoiseSample` rows, holds `PARTIAL_WAKE_LOCK`)
-- **`AudioAnalyzer`**: Reads from `AudioRecord` at 16 kHz mono PCM-16, computes RMS→dB, and fires `onSnoreDetected` when consecutive above-threshold windows last ≥1 s. dB values are relative (`20·log10(rms)`), not calibrated SPL.
+- **`AudioAnalyzer`**: Reads `AudioRecord` at 16 kHz mono PCM-16 in fixed 100 ms frames (timestamped from the stream) and wires the pure detection classes below together. dB values are relative (`20·log10(rms)`), not calibrated SPL — on the test phone a quiet bedroom reads ~5–10.
+- **`service/detection/`** (pure Kotlin, unit-tested with synthetic signals):
+  - `AudioFeatureExtractor`: per-frame level + **low-band ratio** (energy in 60–500 Hz via biquad band-pass / total energy).
+  - `SnoreDetector`: frames above threshold *and* low-pitched (ratio ≥ 0.55) form bursts (0.3–4 s); a burst is only reported once 3 bursts repeat at breathing cadence (2–9 s apart, regular). Lone noises, speech and long continuous noise are ignored.
+  - `AdaptiveFloor`: with auto-calibrate, re-estimates the floor every 60 s from the last 5 min and moves the threshold by ≤ 2 dB per step.
+  - `SnoreScore` (v2): share of the night snoring, weighted by loudness above threshold, √-curved to 0–100.
 - **`NoiseFloorCalibrator`**: Pure Kotlin (unit-tested). With auto-calibrate on, the analyzer feeds it the first 30 s of each night with detection paused; the floor is the 25th-percentile level and threshold = floor + 12 dB, clamped to 35–75 dB. The result is saved on the session and published in `TrackingState`.
 - **`TrackingState`**: A `data class` held in a static `StateFlow` on `SleepTrackingService.Companion` — this is the shared state bus between the service and the UI; no binder/AIDL needed
 
@@ -59,8 +64,7 @@ The README mentions Hilt, but **Hilt is not used**. `SleepLabApp` is a manual DI
 
 - **minSdk 24**, **compileSdk/targetSdk 37**, Kotlin 2.2.10, AGP 9.3.3
 - Annotation processing uses **KSP** (not kapt)
-- `NoiseSample` rows are recorded every 10 seconds during a session for the waveform chart
-- Snore intensity score on session completion = average of `avgDb` and `maxDb`, clamped to 0–100 (to be replaced in Phase 2 of the roadmap)
+- `NoiseSample` rows are recorded every 10 seconds (the mean level over those 10 s) for the night timeline chart
 - All user-facing text lives in `res/values/strings.xml` (EN) and `res/values-fr/strings.xml` (FR); add every new string to both. Escape apostrophes as `\'` or use the typographic `’` — a bare `'` fails `mergeDebugResources`.
 
 ## Roadmap

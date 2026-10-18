@@ -36,13 +36,15 @@ class SleepSessionRepository(private val sleepSessionDao: SleepSessionDao) {
         sessionId: Int,
         endTime: Long = System.currentTimeMillis(),
         totalSnoreDurationSeconds: Int,
-        snoreIntensityScore: Float
+        snoreIntensityScore: Float,
+        scoreVersion: Int
     ) {
         val existing = sleepSessionDao.getSessionByIdDirect(sessionId) ?: return
         val updated = existing.copy(
             endTime = endTime,
             totalSnoreDurationSeconds = totalSnoreDurationSeconds,
-            snoreIntensityScore = snoreIntensityScore
+            snoreIntensityScore = snoreIntensityScore,
+            scoreVersion = scoreVersion
         )
         sleepSessionDao.updateSession(updated)
     }
