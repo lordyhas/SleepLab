@@ -12,10 +12,16 @@ class SnoreEventRepository(private val snoreEventDao: SnoreEventDao) {
     suspend fun getEventsForSessionDirect(sessionId: Int): List<SnoreEventEntity> =
         snoreEventDao.getEventsForSessionDirect(sessionId)
 
-    suspend fun recordSnoreEvent(sessionId: Int, amplitude: Float, durationSeconds: Int = 1): Long {
+    /** @param timestamp when the snore started (detection confirms it a few seconds later). */
+    suspend fun recordSnoreEvent(
+        sessionId: Int,
+        amplitude: Float,
+        durationSeconds: Int = 1,
+        timestamp: Long = System.currentTimeMillis()
+    ): Long {
         val event = SnoreEventEntity(
             sessionId = sessionId,
-            timestamp = System.currentTimeMillis(),
+            timestamp = timestamp,
             amplitude = amplitude,
             durationSeconds = durationSeconds
         )

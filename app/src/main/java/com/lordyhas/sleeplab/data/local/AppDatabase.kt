@@ -20,7 +20,7 @@ import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
         SnoreEventEntity::class,
         NoiseSampleEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

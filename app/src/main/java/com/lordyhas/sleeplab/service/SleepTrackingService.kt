@@ -17,6 +17,9 @@ import androidx.core.content.ContextCompat
 import com.lordyhas.sleeplab.MainActivity
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.SleepLabApp
+import com.lordyhas.sleeplab.service.detection.SnoreBurst
+import com.lordyhas.sleeplab.service.detection.SnoreScore
+import com.lordyhas.sleeplab.service.detection.SoundClass
 import com.lordyhas.sleeplab.ui.util.formatClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +45,11 @@ class SleepTrackingService : Service() {
     private var currentSessionId: Int? = null
     private var currentTreatmentId: Int? = null
     private var startTimeMillis: Long = 0L
+
+    /** Detected snores of the current night, for the score computed when it ends. */
+    private val scoreEpisodes = mutableListOf<SnoreScore.Episode>()
+    /** Averages frame levels between two stored noise samples. */
+    private val sampleAccumulator = LevelAccumulator()
 
     companion object {
         const val CHANNEL_ID = "snore_tracking_channel"
@@ -127,6 +135,8 @@ class SleepTrackingService : Service() {
 
         startTimeMillis = System.currentTimeMillis()
         currentTreatmentId = treatmentId
+        synchronized(scoreEpisodes) { scoreEpisodes.clear() }
+        sampleAccumulator.drainAverage()
 
         // Acquire WakeLock
         acquireWakeLock()
@@ -172,7 +182,9 @@ class SleepTrackingService : Service() {
                     thresholdDb = thresholdDb,
                     noiseFloorDb = null,
                     isCalibrating = autoCalibrate,
-                    calibrationProgress = 0f
+                    calibrationProgress = 0f,
+                    soundClass = SoundClass.QUIET,
+                    lastSnoreAt = 0L
                 )
             }
 
@@ -181,11 +193,14 @@ class SleepTrackingService : Service() {
                 scope = serviceScope,
                 thresholdDb = thresholdDb,
                 calibrator = if (autoCalibrate) NoiseFloorCalibrator() else null,
-                onDecibelUpdate = { db ->
-                    handleDecibelUpdate(db)
+                onFrame = { db, soundClass ->
+                    handleFrame(db, soundClass)
                 },
-                onSnoreDetected = { amplitudeDb, durationSec ->
-                    handleSnoreDetected(sessionId, amplitudeDb, durationSec)
+                onSnoreDetected = { burst, thresholdAtDetection ->
+                    handleSnoreDetected(sessionId, burst, thresholdAtDetection)
+                },
+                onThresholdAdapted = { newThreshold, newFloor ->
+                    _trackingState.update { it.copy(thresholdDb = newThreshold, noiseFloorDb = newFloor) }
                 },
                 onCalibrationProgress = { progress ->
                     _trackingState.update { it.copy(calibrationProgress = progress) }
@@ -208,10 +223,11 @@ class SleepTrackingService : Service() {
             val app = SleepLabApp.instance
             while (isActive) {
                 delay(10_000L) // 10 seconds
-                val currentDb = _trackingState.value.currentDb
+                val averageDb = sampleAccumulator.drainAverage() ?: _trackingState.value.currentDb
                 app.noiseSampleRepository.recordSample(
                     sessionId = sessionId,
-                    decibelLevel = currentDb
+                    decibelLevel = averageDb,
+                    thresholdDb = _trackingState.value.thresholdDb
                 )
             }
         }
@@ -229,33 +245,39 @@ class SleepTrackingService : Service() {
         }
     }
 
-    private fun handleDecibelUpdate(db: Float) {
+    private fun handleFrame(db: Float, soundClass: SoundClass) {
+        sampleAccumulator.add(db)
         _trackingState.update { state ->
-            val updatedHistory = (state.recentDbHistory + db).takeLast(40)
+            val updatedHistory = (state.recentDbHistory + db).takeLast(TrackingState.HISTORY_FRAMES)
             val updatedMax = if (db > state.maxDb) db else state.maxDb
             state.copy(
                 currentDb = db,
                 maxDb = updatedMax,
-                recentDbHistory = updatedHistory
+                recentDbHistory = updatedHistory,
+                soundClass = soundClass
             )
         }
     }
 
-    private fun handleSnoreDetected(sessionId: Int, amplitudeDb: Float, durationSec: Int) {
-        serviceScope.launch(Dispatchers.IO) {
-            val app = SleepLabApp.instance
-            app.snoreEventRepository.recordSnoreEvent(
-                sessionId = sessionId,
-                amplitude = amplitudeDb,
-                durationSeconds = durationSec
+    private fun handleSnoreDetected(sessionId: Int, burst: SnoreBurst, thresholdAtDetection: Float) {
+        val durationSec = burst.durationSeconds
+        synchronized(scoreEpisodes) {
+            scoreEpisodes += SnoreScore.Episode(durationSec, burst.peakDb - thresholdAtDetection)
+        }
+        _trackingState.update { state ->
+            state.copy(
+                snoreCount = state.snoreCount + 1,
+                totalSnoreSeconds = state.totalSnoreSeconds + durationSec,
+                lastSnoreAt = burst.startMs + burst.durationMs
             )
-
-            _trackingState.update { state ->
-                state.copy(
-                    snoreCount = state.snoreCount + 1,
-                    totalSnoreSeconds = state.totalSnoreSeconds + durationSec
-                )
-            }
+        }
+        serviceScope.launch(Dispatchers.IO) {
+            SleepLabApp.instance.snoreEventRepository.recordSnoreEvent(
+                sessionId = sessionId,
+                amplitude = burst.peakDb,
+                durationSeconds = durationSec,
+                timestamp = burst.startMs
+            )
         }
     }
 
@@ -280,7 +302,6 @@ class SleepTrackingService : Service() {
     private fun stopTracking() {
         val sessionId = currentSessionId
         val totalSnoreSeconds = _trackingState.value.totalSnoreSeconds
-        val maxDb = _trackingState.value.maxDb
 
         noiseSamplingJob?.cancel()
         noiseSamplingJob = null
@@ -292,14 +313,16 @@ class SleepTrackingService : Service() {
         serviceScope.launch(Dispatchers.IO) {
             if (sessionId != null) {
                 val app = SleepLabApp.instance
-                val avgDb = app.snoreEventRepository.getAverageAmplitudeForSession(sessionId) ?: 0f
-                val intensityScore = if (avgDb > 0) ((avgDb + maxDb) / 2f).coerceIn(0f, 100f) else 0f
+                val endTime = System.currentTimeMillis()
+                val episodes = synchronized(scoreEpisodes) { scoreEpisodes.toList() }
+                val score = SnoreScore.compute(episodes, (endTime - startTimeMillis) / 1000)
 
                 app.sleepSessionRepository.completeSession(
                     sessionId = sessionId,
-                    endTime = System.currentTimeMillis(),
+                    endTime = endTime,
                     totalSnoreDurationSeconds = totalSnoreSeconds,
-                    snoreIntensityScore = intensityScore
+                    snoreIntensityScore = score,
+                    scoreVersion = SnoreScore.VERSION
                 )
             }
 
@@ -424,5 +447,35 @@ data class TrackingState(
     val thresholdDb: Float = 50f,
     val noiseFloorDb: Float? = null,
     val isCalibrating: Boolean = false,
-    val calibrationProgress: Float = 0f
-)
+    val calibrationProgress: Float = 0f,
+    /** What the latest frame sounds like (quiet / other noise / snore-like). */
+    val soundClass: SoundClass = SoundClass.QUIET,
+    /** End time of the last confirmed snore, 0 if none yet. */
+    val lastSnoreAt: Long = 0L
+) {
+    companion object {
+        /** Live waveform length: 60 frames of 100 ms. */
+        const val HISTORY_FRAMES = 60
+    }
+}
+
+/** Thread-safe running mean of frame levels. */
+private class LevelAccumulator {
+    private var sum = 0.0
+    private var count = 0
+
+    @Synchronized
+    fun add(db: Float) {
+        sum += db
+        count++
+    }
+
+    /** Mean since the last call, or null if nothing was added; resets. */
+    @Synchronized
+    fun drainAverage(): Float? {
+        val mean = if (count > 0) (sum / count).toFloat() else null
+        sum = 0.0
+        count = 0
+        return mean
+    }
+}

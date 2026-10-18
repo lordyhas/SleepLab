@@ -1,4 +1,4 @@
-﻿package com.lordyhas.sleeplab.data.local.entity
+package com.lordyhas.sleeplab.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -22,5 +22,7 @@ data class NoiseSampleEntity(
     val id: Int = 0,
     val sessionId: Int,
     val timestamp: Long = System.currentTimeMillis(),
-    val decibelLevel: Float
+    val decibelLevel: Float,
+    /** Snore threshold in force when the sample was taken; null for nights before database v4. */
+    val thresholdDb: Float? = null
 )

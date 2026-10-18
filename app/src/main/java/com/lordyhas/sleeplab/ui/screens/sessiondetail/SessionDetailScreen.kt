@@ -90,6 +90,7 @@ import com.lordyhas.sleeplab.ui.theme.SnoreLow
 import com.lordyhas.sleeplab.ui.theme.SnoreMedium
 import com.lordyhas.sleeplab.ui.theme.snoreLevelColor
 import com.lordyhas.sleeplab.ui.util.formatDuration
+import com.lordyhas.sleeplab.ui.util.scoreDisplay
 import com.lordyhas.sleeplab.ui.util.sessionDurationSeconds
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -167,7 +168,8 @@ fun SessionDetailScreen(
             else -> {
                 val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
                 val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-                val score = session.snoreIntensityScore
+                val display = session.scoreDisplay()
+                val score = display.value
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -212,10 +214,17 @@ fun SessionDetailScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    if (display.isLegacy) {
+                                        Text(
+                                            stringResource(R.string.legacy_score_hint),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
                                 }
                                 GaugeRing(
                                     progress = score / 100f,
-                                    color = snoreLevelColor(score),
+                                    color = display.color,
                                     strokeWidth = 8.dp,
                                     animationMillis = 900,
                                     modifier = Modifier.size(96.dp)
@@ -223,7 +232,7 @@ fun SessionDetailScreen(
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text("${score.toInt()}", style = MaterialTheme.typography.headlineSmall)
                                         Text(
-                                            stringResource(R.string.intensity_label),
+                                            stringResource(display.labelRes),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -503,7 +512,16 @@ private fun NightTimelineChart(
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    val thresholdLabel = stringResource(R.string.threshold_line, thresholdDb.toInt())
+    // Only samples where the threshold changed, as (timestamp, threshold)
+    val thresholdSteps = remember(noiseSamples) {
+        noiseSamples.mapNotNull { s -> s.thresholdDb?.let { s.timestamp to it } }
+            .fold(mutableListOf<Pair<Long, Float>>()) { acc, step ->
+                if (acc.lastOrNull()?.second != step.second) acc += step
+                acc
+            }
+    }
+    val finalThreshold = thresholdSteps.lastOrNull()?.second ?: thresholdDb
+    val thresholdLabel = stringResource(R.string.threshold_line, finalThreshold.toInt())
     val gridColor = Color.White.copy(alpha = 0.07f)
 
     Canvas(modifier = modifier) {
@@ -536,15 +554,31 @@ private fun NightTimelineChart(
             )
         }
 
-        // Threshold
-        val thresholdY = yFor(thresholdDb)
-        drawLine(
+        // Threshold: stepped when the adaptive floor moved it during the night, flat otherwise
+        val thresholdPath = Path()
+        if (thresholdSteps.isEmpty()) {
+            thresholdPath.moveTo(left, yFor(thresholdDb))
+            thresholdPath.lineTo(size.width, yFor(thresholdDb))
+        } else {
+            var y = yFor(thresholdSteps.first().second)
+            thresholdPath.moveTo(left, y)
+            thresholdSteps.forEach { (timestamp, value) ->
+                val x = xFor(timestamp)
+                thresholdPath.lineTo(x, y)
+                y = yFor(value)
+                thresholdPath.lineTo(x, y)
+            }
+            thresholdPath.lineTo(size.width, y)
+        }
+        drawPath(
+            path = thresholdPath,
             color = Color.White.copy(alpha = 0.35f),
-            start = Offset(left, thresholdY),
-            end = Offset(size.width, thresholdY),
-            strokeWidth = 1.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+            style = Stroke(
+                width = 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+            )
         )
+        val thresholdY = yFor(finalThreshold)
         val thresholdText = textMeasurer.measure(thresholdLabel, labelStyle)
         drawText(
             thresholdText,

@@ -16,5 +16,16 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/**
+ * v3 → v4: versioned snore score (existing nights keep the legacy formula) and the threshold
+ * in force for each noise sample, so the night chart can show it moving with the adaptive floor.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE sleep_sessions ADD COLUMN scoreVersion INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE noise_samples ADD COLUMN thresholdDb REAL")
+    }
+}
+
 /** Every migration, in order. New migrations must be appended here and covered by MigrationTest. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_2_3)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4)

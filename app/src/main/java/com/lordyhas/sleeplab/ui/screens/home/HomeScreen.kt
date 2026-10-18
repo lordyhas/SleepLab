@@ -80,8 +80,8 @@ import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
 import com.lordyhas.sleeplab.ui.theme.SnoreLow
 import com.lordyhas.sleeplab.ui.theme.SnoreMedium
-import com.lordyhas.sleeplab.ui.theme.snoreLevelColor
 import com.lordyhas.sleeplab.ui.util.formatClock
+import com.lordyhas.sleeplab.ui.util.scoreDisplay
 import com.lordyhas.sleeplab.ui.util.formatDuration
 import com.lordyhas.sleeplab.ui.util.sessionDurationSeconds
 import java.text.SimpleDateFormat
@@ -462,15 +462,10 @@ private fun LastNightCard(
             return@GlassCard
         }
 
-        val score = latestSession.snoreIntensityScore
-        val levelColor = snoreLevelColor(score)
-        val levelLabel = stringResource(
-            when {
-                score < 45f -> R.string.night_quiet
-                score < 60f -> R.string.night_moderate
-                else -> R.string.night_loud
-            }
-        )
+        val display = latestSession.scoreDisplay()
+        val score = display.value
+        val levelColor = display.color
+        val levelLabel = stringResource(display.levelRes)
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             GaugeRing(
@@ -487,7 +482,7 @@ private fun LastNightCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        stringResource(R.string.intensity_label),
+                        stringResource(display.labelRes),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
