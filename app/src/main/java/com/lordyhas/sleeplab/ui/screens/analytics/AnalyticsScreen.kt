@@ -94,6 +94,8 @@ fun AnalyticsScreen(
     ) {
         item { ScreenHeader(title = stringResource(R.string.analytics_and_efficiency)) }
 
+        if (!uiState.isLoaded) return@LazyColumn
+
         if (uiState.sessionsWithTreatments.isEmpty()) {
             item {
                 EmptyState(

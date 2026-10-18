@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -85,7 +87,9 @@ import com.lordyhas.sleeplab.ui.components.IconBadge
 import com.lordyhas.sleeplab.ui.components.MetricTile
 import com.lordyhas.sleeplab.ui.components.Pill
 import com.lordyhas.sleeplab.ui.components.ScreenHeader
-import com.lordyhas.sleeplab.ui.components.rememberMicPermissionGate
+import com.lordyhas.sleeplab.ui.components.rememberStartNightGate
+import com.lordyhas.sleeplab.service.bedtime.BedtimeSchedule
+import com.lordyhas.sleeplab.ui.util.formatMinuteOfDay
 import com.lordyhas.sleeplab.ui.theme.MoonGlow
 import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
@@ -111,14 +115,23 @@ private const val GAUGE_MAX_DB = 90f
 @Composable
 fun TrackingScreen(
     viewModel: TrackingViewModel = viewModel(),
-    onNavigateToTreatments: () -> Unit = {}
+    onNavigateToTreatments: () -> Unit = {},
+    /** Start a night as soon as possible (from a reminder or the Quick Settings tile). */
+    startRequested: Boolean = false,
+    onStartRequestHandled: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val trackingState by viewModel.trackingState.collectAsState()
     val allTreatments by viewModel.allTreatments.collectAsState()
     val plannedTreatment by viewModel.plannedTreatment.collectAsState()
 
-    val startTracking = rememberMicPermissionGate { viewModel.startTracking(context) }
+    val startTracking = rememberStartNightGate { viewModel.startTracking(context) }
+    LaunchedEffect(startRequested) {
+        if (startRequested) {
+            onStartRequestHandled()
+            if (!trackingState.isTracking) startTracking()
+        }
+    }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Crossfade(
@@ -200,7 +213,34 @@ private fun ActiveTrackingContent(
                 modifier = Modifier.align(Alignment.Start)
             )
             Spacer(Modifier.height(10.dp))
-            CalibrationStatus(state = state, modifier = Modifier.align(Alignment.Start))
+            val now = System.currentTimeMillis()
+            if (now < state.detectionStartsAt) {
+                val minutesLeft = ((state.detectionStartsAt - now + 59_999) / 60_000).toInt()
+                Pill(
+                    text = stringResource(R.string.detection_starts_in, minutesLeft),
+                    color = MoonGlow,
+                    icon = Icons.Default.HourglassBottom,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+            } else {
+                CalibrationStatus(state = state, modifier = Modifier.align(Alignment.Start))
+            }
+            if (state.stopAt > 0 && state.stopAt < state.startTime + BedtimeSchedule.MAX_SESSION_MS) {
+                val stopCal = java.util.Calendar.getInstance().apply { timeInMillis = state.stopAt }
+                Spacer(Modifier.height(8.dp))
+                Pill(
+                    text = stringResource(
+                        R.string.stops_at,
+                        formatMinuteOfDay(
+                            LocalContext.current,
+                            stopCal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + stopCal.get(java.util.Calendar.MINUTE)
+                        )
+                    ),
+                    color = SleepTealAccent,
+                    icon = Icons.Default.Alarm,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+            }
             if (state.clipsEnabled) {
                 Spacer(Modifier.height(8.dp))
                 Pill(

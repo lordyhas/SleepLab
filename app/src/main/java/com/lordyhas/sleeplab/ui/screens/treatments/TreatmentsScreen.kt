@@ -86,6 +86,11 @@ fun TreatmentsScreen(
     val clipsEnabled by viewModel.clipsEnabled.collectAsState()
     val clipRetentionDays by viewModel.clipRetentionDays.collectAsState()
     val clipStorageBytes by viewModel.clipStorageBytes.collectAsState()
+    val startDelayMinutes by viewModel.startDelayMinutes.collectAsState()
+    val autoStopEnabled by viewModel.autoStopEnabled.collectAsState()
+    val autoStopMinuteOfDay by viewModel.autoStopMinuteOfDay.collectAsState()
+    val reminderEnabled by viewModel.reminderEnabled.collectAsState()
+    val reminderMinuteOfDay by viewModel.reminderMinuteOfDay.collectAsState()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<TreatmentEntity?>(null) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -115,6 +120,22 @@ fun TreatmentsScreen(
                     onEnabledChange = viewModel::setClipsEnabled,
                     onRetentionChange = viewModel::setClipRetentionDays,
                     onDeleteAll = viewModel::deleteAllClips
+                )
+            }
+
+            item {
+                Spacer(Modifier.height(4.dp))
+                SectionHeader(stringResource(R.string.bedtime_section))
+                Spacer(Modifier.height(4.dp))
+                BedtimeSettingsCard(
+                    startDelayMinutes = startDelayMinutes,
+                    autoStopEnabled = autoStopEnabled,
+                    autoStopMinuteOfDay = autoStopMinuteOfDay,
+                    reminderEnabled = reminderEnabled,
+                    reminderMinuteOfDay = reminderMinuteOfDay,
+                    onStartDelayChange = viewModel::setStartDelayMinutes,
+                    onAutoStopChange = viewModel::setAutoStop,
+                    onReminderChange = viewModel::setReminder
                 )
             }
 
