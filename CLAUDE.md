@@ -36,7 +36,8 @@ Single-module Android app (`app/`) using MVVM + Clean Architecture. Three layers
 - **DAOs**: One per entity under `data/local/dao/`
 - **Repositories**: Thin wrappers around DAOs under `data/repository/`
 - **`SettingsRepository`**: SharedPreferences-backed `StateFlow`s for user preferences — manual threshold, auto-calibrate toggle, and tonight's treatment choice (shared by Home and Tracking; resolve it with `SettingsRepository.resolveTreatmentId`)
-- **`AppDatabase`**: Room DB v5, named `snore_tracker_database`. Schemas are exported to `app/schemas/` (commit them). **Every schema change needs a `Migration`** in `data/local/Migrations.kt`, appended to `ALL_MIGRATIONS` and covered by `MigrationTest` (androidTest). Only pre-release v1 databases fall back to destructive migration.
+- **`AppDatabase`**: Room DB v6, named `snore_tracker_database`. Schemas are exported to `app/schemas/` (commit them). **Every schema change needs a `Migration`** in `data/local/Migrations.kt`, appended to `ALL_MIGRATIONS` and covered by `MigrationTest` (androidTest). Only pre-release v1 databases fall back to destructive migration.
+- **Factors** (`factors` + `session_factors`): built-ins have a `key` (`BuiltInFactors`, seeded by `MIGRATION_5_6` and the DB `onCreate` callback) and are named via string resources in `ui/components/FactorPicker.kt`; custom ones have a `name`. Tonight's picks live in `SettingsRepository.tonightFactorIds` and are attached by the service when a night starts, then cleared.
 - **Per-night settings**: `SleepSessionEntity` stores the `thresholdDb` actually used and the measured `noiseFloorDb` (null = manual threshold), plus `note`, `morningRating` (1–5) and `scoreVersion` (1 = legacy `(avgDb+maxDb)/2`, 2 = `SnoreScore`; show scores via `ui/util/NightScore.kt`, never assume one formula). Each `NoiseSample` stores the `thresholdDb` in force (null before v4). Delete a night with `SleepSessionDao.deleteNight` (removes its events and samples in one transaction).
 
 ### Service layer (`service/`)
@@ -58,6 +59,7 @@ Single-module Android app (`app/`) using MVVM + Clean Architecture. Three layers
 - Navigation defined in `AppNavHost` with a bottom nav bar; routes are sealed objects in `Screen`
 - The Tracking tab shows a live badge when `trackingState.isTracking == true`
 - **Design system**: dark-only night theme in `ui/theme/` (type scale with tabular figures, shapes, full M3 surface tokens, `snoreLevelColor()` severity bands). Shared composables live in `ui/components/` (`NightBackground`, `GlassCard`, `ScreenHeader`, `MetricTile`, `Pill`, `GaugeRing`, `HoldToConfirmButton`, `MorningRatingSelector`, `rememberMicPermissionGate`); duration formatting in `ui/util/Formatters.kt`. Reuse these instead of styling screens ad hoc.
+- **Insights**: `ui/screens/analytics/Insights.kt` is pure, unit-tested maths (factor impact with ≥ 3 nights each side, week/month trends, rating breakdown, calendar). A night belongs to the evening it started (`nightDayKey` shifts by 12 h), so 00:30 counts for the previous day.
 - **Insets**: the outer `Scaffold` in `AppNavHost` has zero content insets and only reserves the bottom bar. Tab screens add the status-bar padding themselves (`WindowInsets.statusBars`); screens with their own `TopAppBar` (Session detail) get it from that.
 
 ### Dependency injection

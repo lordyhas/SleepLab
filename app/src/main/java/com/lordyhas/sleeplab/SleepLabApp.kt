@@ -7,6 +7,7 @@ import com.lordyhas.sleeplab.data.repository.SnoreEventRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
 import com.lordyhas.sleeplab.data.repository.NoiseSampleRepository
 import com.lordyhas.sleeplab.data.repository.ClipRepository
+import com.lordyhas.sleeplab.data.repository.FactorRepository
 import com.lordyhas.sleeplab.data.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ class SleepLabApp : Application() {
     val snoreEventRepository by lazy { SnoreEventRepository(database.snoreEventDao()) }
     val noiseSampleRepository by lazy { NoiseSampleRepository(database.noiseSampleDao()) }
     val settingsRepository by lazy { SettingsRepository(this) }
+    val factorRepository by lazy { FactorRepository(database.factorDao()) }
     val clipRepository by lazy { ClipRepository(this, database.snoreEventDao(), settingsRepository) }
 
     /** App-lifetime scope for housekeeping that must outlive any screen. */

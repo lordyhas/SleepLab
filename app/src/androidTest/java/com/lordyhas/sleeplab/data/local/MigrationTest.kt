@@ -109,6 +109,31 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate5To6_createsFactorTablesWithBuiltIns() {
+        helper.createDatabase(dbName, 5).apply {
+            execSQL("INSERT INTO sleep_sessions (id, startTime, endTime, totalSnoreDurationSeconds, snoreIntensityScore) VALUES (1, 1000, 9000, 60, 20.0)")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6)
+
+        db.query("SELECT `key` FROM factors WHERE `key` IS NOT NULL ORDER BY id").use { c ->
+            val keys = mutableListOf<String>()
+            while (c.moveToNext()) keys += c.getString(0)
+            assertEquals(com.lordyhas.sleeplab.data.local.entity.BuiltInFactors.ALL, keys)
+        }
+        // A night can be tagged, and tags go away with the night
+        db.execSQL("INSERT INTO session_factors (sessionId, factorId) VALUES (1, 1)")
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM sleep_sessions WHERE id = 1")
+        db.query("SELECT COUNT(*) FROM session_factors").use { c ->
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
+        }
+        db.close()
+    }
+
+    @Test
     fun migrate2To4_fullUpgradePathFromRelease() {
         helper.createDatabase(dbName, 2).apply {
             execSQL(

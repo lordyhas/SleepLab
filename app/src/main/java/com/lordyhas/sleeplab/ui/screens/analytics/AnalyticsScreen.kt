@@ -38,6 +38,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,6 +92,7 @@ fun AnalyticsScreen(
     onNavigateToSessionDetail: (Int) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var trendPeriod by rememberSaveable { mutableStateOf(TrendPeriod.NIGHTS) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     LazyColumn(
@@ -144,7 +152,43 @@ fun AnalyticsScreen(
             }
         }
 
-        item { SnoreEvolutionChartCard(sessions = uiState.sessionsWithTreatments.takeLast(CHART_NIGHTS)) }
+        item {
+            val dayFormat = remember { SimpleDateFormat("d/M", Locale.getDefault()) }
+            val monthFormat = remember { SimpleDateFormat("LLL", Locale.getDefault()) }
+            val bars = when (trendPeriod) {
+                TrendPeriod.NIGHTS -> uiState.sessionsWithTreatments.takeLast(CHART_NIGHTS).map {
+                    ChartBar(
+                        label = dayFormat.format(Date(it.session.startTime)),
+                        minutes = it.session.totalSnoreDurationSeconds / 60f,
+                        color = if (it.session.treatmentId != null) SleepTealAccent else SleepIndigoPrimary
+                    )
+                }
+                TrendPeriod.WEEKS -> uiState.weekTrend.map {
+                    ChartBar(dayFormat.format(Date(it.startMillis)), it.avgSnoreMinutes, SleepIndigoLight)
+                }
+                TrendPeriod.MONTHS -> uiState.monthTrend.map {
+                    ChartBar(monthFormat.format(Date(it.startMillis)), it.avgSnoreMinutes, SleepIndigoLight)
+                }
+            }
+            SnoreTrendCard(
+                period = trendPeriod,
+                onPeriodChange = { trendPeriod = it },
+                bars = bars,
+                showTreatmentLegend = trendPeriod == TrendPeriod.NIGHTS
+            )
+        }
+
+        item {
+            CalendarCard(
+                minutesByDay = uiState.minutesByDay,
+                sessionIdByDay = uiState.sessionIdByDay,
+                onNightClick = onNavigateToSessionDetail
+            )
+        }
+
+        item { FactorImpactCard(impacts = uiState.factorImpacts) }
+
+        item { RatingCard(breakdown = uiState.ratingBreakdown, ratedNights = uiState.ratedNights) }
 
         item {
             Spacer(Modifier.height(4.dp))
@@ -229,7 +273,7 @@ private fun TreatmentImpactHeroCard(
 }
 
 @Composable
-private fun ComparisonBar(label: String, minutes: Float, fraction: Float, color: Color) {
+internal fun ComparisonBar(label: String, minutes: Float, fraction: Float, color: Color) {
     val animated by animateFloatAsState(fraction.coerceIn(0.02f, 1f), tween(800), label = "comparisonBar")
     Column {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -240,7 +284,8 @@ private fun ComparisonBar(label: String, minutes: Float, fraction: Float, color:
                 modifier = Modifier.weight(1f)
             )
             Text(
-                stringResource(R.string.avg_snore_val, minutes.toInt()),
+                if (minutes > 0f && minutes < 1f) stringResource(R.string.avg_snore_under_one)
+                else stringResource(R.string.avg_snore_val, minutes.toInt()),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -264,21 +309,29 @@ private fun ComparisonBar(label: String, minutes: Float, fraction: Float, color:
     }
 }
 
+/** One bar of the trend chart. */
+private data class ChartBar(val label: String, val minutes: Float, val color: Color)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SnoreEvolutionChartCard(sessions: List<SessionWithTreatment>) {
-    val dateFormat = remember { SimpleDateFormat("d/M", Locale.getDefault()) }
+private fun SnoreTrendCard(
+    period: TrendPeriod,
+    onPeriodChange: (TrendPeriod) -> Unit,
+    bars: List<ChartBar>,
+    showTreatmentLegend: Boolean
+) {
     val textMeasurer = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = Color.White.copy(alpha = 0.07f)
     val labelStyle = TextStyle(fontSize = 10.sp, color = labelColor)
 
     val growth = remember { Animatable(0f) }
-    LaunchedEffect(sessions.size) {
+    LaunchedEffect(bars.size, period) {
         growth.snapTo(0f)
         growth.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
     }
 
-    val maxMinutes = sessions.maxOfOrNull { it.session.totalSnoreDurationSeconds / 60f } ?: 0f
+    val maxMinutes = bars.maxOfOrNull { it.minutes } ?: 0f
     // Round the axis up to a friendly step so gridline labels are clean numbers.
     val axisStep = when {
         maxMinutes <= 15f -> 5f
@@ -289,10 +342,40 @@ private fun SnoreEvolutionChartCard(sessions: List<SessionWithTreatment>) {
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.snoring_evolution), style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            LegendItem(SleepIndigoPrimary, stringResource(R.string.no_treatment))
-            LegendItem(SleepTealAccent, stringResource(R.string.with_treatment))
+        Spacer(Modifier.height(10.dp))
+        val periods = TrendPeriod.entries
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            periods.forEachIndexed { index, option ->
+                SegmentedButton(
+                    selected = period == option,
+                    onClick = { onPeriodChange(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index, periods.size),
+                    label = {
+                        Text(
+                            stringResource(
+                                when (option) {
+                                    TrendPeriod.NIGHTS -> R.string.trend_nights
+                                    TrendPeriod.WEEKS -> R.string.trend_weeks
+                                    TrendPeriod.MONTHS -> R.string.trend_months
+                                }
+                            )
+                        )
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        if (showTreatmentLegend) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                LegendItem(SleepIndigoPrimary, stringResource(R.string.no_treatment))
+                LegendItem(SleepTealAccent, stringResource(R.string.with_treatment))
+            }
+        } else {
+            Text(
+                stringResource(R.string.trend_average_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Spacer(Modifier.height(16.dp))
 
@@ -326,32 +409,27 @@ private fun SnoreEvolutionChartCard(sessions: List<SessionWithTreatment>) {
                 )
             }
 
-            val count = sessions.size
+            val count = bars.size
             if (count == 0) return@Canvas
             val slot = chartWidth / count
             val barWidth = (slot * 0.56f).coerceAtMost(22.dp.toPx())
-            // Skip date labels when bars are too dense to fit them.
+            // Skip labels when bars are too dense to fit them.
             val labelEvery = if (count > 7) 2 else 1
 
-            sessions.forEachIndexed { index, item ->
-                val minutes = item.session.totalSnoreDurationSeconds / 60f
-                val barHeight = ((minutes / axisMax) * chartHeight * growth.value).coerceAtLeast(3.dp.toPx())
+            bars.forEachIndexed { index, bar ->
+                val barHeight = ((bar.minutes / axisMax) * chartHeight * growth.value).coerceAtLeast(3.dp.toPx())
                 val centerX = chartLeft + slot * index + slot / 2f
-                val color = if (item.session.treatmentId != null) SleepTealAccent else SleepIndigoPrimary
 
                 drawRoundRect(
-                    color = color,
+                    color = bar.color,
                     topLeft = Offset(centerX - barWidth / 2f, chartHeight - barHeight),
                     size = Size(barWidth, barHeight),
                     cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
                 )
 
                 if ((count - 1 - index) % labelEvery == 0) {
-                    val dateLabel = textMeasurer.measure(dateFormat.format(Date(item.session.startTime)), labelStyle)
-                    drawText(
-                        dateLabel,
-                        topLeft = Offset(centerX - dateLabel.size.width / 2f, chartHeight + 4.dp.toPx())
-                    )
+                    val label = textMeasurer.measure(bar.label, labelStyle)
+                    drawText(label, topLeft = Offset(centerX - label.size.width / 2f, chartHeight + 4.dp.toPx()))
                 }
             }
         }

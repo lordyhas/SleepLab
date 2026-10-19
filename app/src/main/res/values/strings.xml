@@ -215,4 +215,39 @@
     <string name="battery_message">Battery is at %1$d%% and not charging. The microphone runs all night and may drain the battery before morning.</string>
     <string name="battery_start_anyway">Start anyway</string>
     <string name="battery_plug_in">I’ll plug it in</string>
+    <!-- Phase 5: insights -->
+    <string name="tonight_factors">Tonight’s factors</string>
+    <string name="tonight_factors_hint">Anything that might affect your snoring tonight.</string>
+    <string name="night_factors">Factors</string>
+    <string name="factor_alcohol">Alcohol</string>
+    <string name="factor_late_meal">Late meal</string>
+    <string name="factor_congestion">Cold / congestion</string>
+    <string name="factor_back_sleeping">Slept on back</string>
+    <string name="factor_exhausted">Exhausted</string>
+    <string name="factor_sedatives">Sleeping pills / sedatives</string>
+    <string name="factor_add">Add</string>
+    <string name="factor_add_title">New factor</string>
+    <string name="factor_add_hint">e.g. Late coffee</string>
+    <string name="trend_nights">Nights</string>
+    <string name="trend_weeks">Weeks</string>
+    <string name="trend_months">Months</string>
+    <string name="trend_average_hint">Average minutes of snoring per night</string>
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
+    <string name="calendar_low">≤ 10 min</string>
+    <string name="calendar_medium">10–30 min</string>
+    <string name="calendar_high">&gt; 30 min</string>
+    <string name="factors_title">What goes with more snoring</string>
+    <string name="factors_empty">Tag your nights with factors (alcohol, a cold…) on Home or in a night’s detail to see which ones go with more snoring.</string>
+    <string name="factor_compare">%1$d vs %2$d min / night without it</string>
+    <plurals name="factor_needs_nights">
+        <item quantity="one">%1$d more night needed to compare</item>
+        <item quantity="other">%1$d more nights needed to compare</item>
+    </plurals>
+    <string name="factor_more">+%1$d%%</string>
+    <string name="factor_less">−%1$d%%</string>
+    <string name="factor_no_effect">No clear effect</string>
+    <string name="rating_vs_snoring_title">Snoring vs how you felt</string>
+    <string name="rating_vs_snoring_hint">Rate at least %1$d nights to see this (%2$d so far).</string>
+    <string name="avg_snore_under_one">&lt; 1 min / night</string>
 </resources>

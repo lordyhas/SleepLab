@@ -195,6 +195,13 @@ class SleepTrackingService : Service() {
             val sessionId = app.sleepSessionRepository.startNewSession(treatmentId, thresholdDb).toInt()
             currentSessionId = sessionId
 
+            // Tonight's factors belong to this night; the picker starts empty next time.
+            val factorIds = app.settingsRepository.tonightFactorIds.value
+            if (factorIds.isNotEmpty()) {
+                app.factorRepository.setSessionFactors(sessionId, factorIds)
+                app.settingsRepository.setTonightFactorIds(emptySet())
+            }
+
             _trackingState.update {
                 it.copy(
                     isTracking = true,

@@ -6,7 +6,11 @@ import com.lordyhas.sleeplab.SleepLabApp
 import com.lordyhas.sleeplab.data.local.entity.NoiseSampleEntity
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.SnoreEventEntity
+import com.lordyhas.sleeplab.data.local.entity.FactorEntity
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -34,6 +38,14 @@ class SessionDetailViewModel(
     private val noiseSampleRepository = SleepLabApp.instance.noiseSampleRepository
     private val snoreEventRepository = SleepLabApp.instance.snoreEventRepository
     private val treatmentRepository = SleepLabApp.instance.treatmentRepository
+    private val factorRepository = SleepLabApp.instance.factorRepository
+
+    val factors: StateFlow<List<FactorEntity>> = factorRepository.getAllFactors()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val factorIds: StateFlow<Set<Int>> = factorRepository.getFactorIdsForSession(sessionId)
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     private val _uiState = MutableStateFlow(SessionDetailUiState())
     val uiState: StateFlow<SessionDetailUiState> = _uiState.asStateFlow()
@@ -75,6 +87,20 @@ class SessionDetailViewModel(
                     it.copy(isLoading = false, session = session, treatmentName = treatmentName)
                 }
             }
+        }
+    }
+
+    fun toggleFactor(factorId: Int) {
+        val current = factorIds.value
+        viewModelScope.launch {
+            factorRepository.setSessionFactors(sessionId, if (factorId in current) current - factorId else current + factorId)
+        }
+    }
+
+    fun addCustomFactor(name: String) {
+        viewModelScope.launch {
+            val id = factorRepository.addCustomFactor(name)
+            factorRepository.setSessionFactors(sessionId, factorIds.value + id)
         }
     }
 
