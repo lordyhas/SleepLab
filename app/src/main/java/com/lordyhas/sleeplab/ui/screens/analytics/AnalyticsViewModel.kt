@@ -27,6 +27,8 @@ data class TreatmentImpact(
 )
 
 data class AnalyticsUiState(
+    /** False until the database has answered once. */
+    val isLoaded: Boolean = false,
     val sessionsWithTreatments: List<SessionWithTreatment> = emptyList(),
     val treatmentImpacts: List<TreatmentImpact> = emptyList(),
     val overallImprovementPercentage: Float? = null,
@@ -111,6 +113,7 @@ class AnalyticsViewModel(
         }
 
         AnalyticsUiState(
+            isLoaded = true,
             sessionsWithTreatments = sessionsWithTreatments,
             treatmentImpacts = impacts,
             overallImprovementPercentage = overallImprovement,

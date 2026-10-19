@@ -23,7 +23,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.lordyhas.sleeplab.LaunchAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
@@ -53,7 +58,10 @@ private const val TRANSITION_MILLIS = 260
 
 @Composable
 fun AppNavHost(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    /** Request from a reminder / Quick Settings tile; [onLaunchActionHandled] clears it. */
+    launchAction: LaunchAction? = null,
+    onLaunchActionHandled: () -> Unit = {}
 ) {
     val items = listOf(
         Screen.Home,
@@ -74,6 +82,16 @@ fun AppNavHost(
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    // External requests always land on the Tracking tab; starting is done by TrackingScreen
+    // so the charger / permission checks run as for a tap on its button.
+    var startRequested by remember { mutableStateOf(false) }
+    LaunchedEffect(launchAction) {
+        val action = launchAction ?: return@LaunchedEffect
+        if (action == LaunchAction.START_TRACKING) startRequested = true
+        navigateToTab(Screen.Tracking)
+        onLaunchActionHandled()
     }
 
     NightBackground {
@@ -141,7 +159,9 @@ fun AppNavHost(
 
                 composable(Screen.Tracking.route) {
                     TrackingScreen(
-                        onNavigateToTreatments = { navigateToTab(Screen.Treatments) }
+                        onNavigateToTreatments = { navigateToTab(Screen.Treatments) },
+                        startRequested = startRequested,
+                        onStartRequestHandled = { startRequested = false }
                     )
                 }
 

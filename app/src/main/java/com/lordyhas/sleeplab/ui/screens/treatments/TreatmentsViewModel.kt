@@ -6,6 +6,7 @@ import com.lordyhas.sleeplab.SleepLabApp
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
 import com.lordyhas.sleeplab.data.repository.SettingsRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
+import com.lordyhas.sleeplab.service.bedtime.BedtimeReminder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -60,6 +61,21 @@ class TreatmentsViewModel(
             clipRepository.deleteAll()
             _clipStorageBytes.value = 0L
         }
+    }
+
+    val startDelayMinutes: StateFlow<Int> = settingsRepository.startDelayMinutes
+    val autoStopEnabled: StateFlow<Boolean> = settingsRepository.autoStopEnabled
+    val autoStopMinuteOfDay: StateFlow<Int> = settingsRepository.autoStopMinuteOfDay
+    val reminderEnabled: StateFlow<Boolean> = settingsRepository.reminderEnabled
+    val reminderMinuteOfDay: StateFlow<Int> = settingsRepository.reminderMinuteOfDay
+
+    fun setStartDelayMinutes(minutes: Int) = settingsRepository.setStartDelayMinutes(minutes)
+
+    fun setAutoStop(enabled: Boolean, minuteOfDay: Int) = settingsRepository.setAutoStop(enabled, minuteOfDay)
+
+    fun setReminder(enabled: Boolean, minuteOfDay: Int) {
+        settingsRepository.setReminder(enabled, minuteOfDay)
+        BedtimeReminder.sync(SleepLabApp.instance)
     }
 
     fun setAutoCalibrate(enabled: Boolean) {

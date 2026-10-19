@@ -17,6 +17,8 @@ import androidx.core.content.ContextCompat
 import com.lordyhas.sleeplab.MainActivity
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.SleepLabApp
+import com.lordyhas.sleeplab.service.bedtime.BedtimeSchedule
+import com.lordyhas.sleeplab.service.bedtime.SleepTrackingTileService
 import com.lordyhas.sleeplab.service.clips.AacClipEncoder
 import com.lordyhas.sleeplab.service.clips.ClipBudget
 import com.lordyhas.sleeplab.service.detection.SnoreBurst
@@ -50,6 +52,7 @@ class SleepTrackingService : Service() {
     private var currentSessionId: Int? = null
     private var currentTreatmentId: Int? = null
     private var startTimeMillis: Long = 0L
+    private var stopAtMillis: Long = Long.MAX_VALUE
 
     /** Clip saving runs one at a time, so evictions and saves never race. */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -153,7 +156,14 @@ class SleepTrackingService : Service() {
         clipBudget = ClipBudget()
         eventIds.clear()
         clipPaths.clear()
-        val captureClips = SleepLabApp.instance.settingsRepository.clipsEnabled.value
+        val settings = SleepLabApp.instance.settingsRepository
+        val captureClips = settings.clipsEnabled.value
+        val startDelayMs = settings.startDelayMinutes.value * 60_000L
+        stopAtMillis = BedtimeSchedule.stopAt(
+            startMillis = startTimeMillis,
+            autoStopEnabled = settings.autoStopEnabled.value,
+            autoStopMinuteOfDay = settings.autoStopMinuteOfDay.value
+        )
         sampleAccumulator.drainAverage()
 
         // Acquire WakeLock
@@ -203,7 +213,9 @@ class SleepTrackingService : Service() {
                     calibrationProgress = 0f,
                     soundClass = SoundClass.QUIET,
                     lastSnoreAt = 0L,
-                    clipsEnabled = captureClips
+                    clipsEnabled = captureClips,
+                    detectionStartsAt = startTimeMillis + startDelayMs,
+                    stopAt = stopAtMillis
                 )
             }
 
@@ -222,6 +234,7 @@ class SleepTrackingService : Service() {
                     _trackingState.update { it.copy(thresholdDb = newThreshold, noiseFloorDb = newFloor) }
                 },
                 captureClips = captureClips,
+                startDelayMs = startDelayMs,
                 onClipAudio = { burst, samples, sampleRate ->
                     handleClipAudio(sessionId, burst, samples, sampleRate)
                 },
@@ -234,6 +247,7 @@ class SleepTrackingService : Service() {
             ).also { it.start() }
 
             startNoiseSampling(sessionId)
+            SleepTrackingTileService.refresh(this@SleepTrackingService)
 
             // Timer for elapsed seconds
             startElapsedTimer()
@@ -261,7 +275,12 @@ class SleepTrackingService : Service() {
         timerJob = serviceScope.launch {
             while (isActive) {
                 delay(1000)
-                val elapsed = (System.currentTimeMillis() - startTimeMillis) / 1000
+                val now = System.currentTimeMillis()
+                if (now >= stopAtMillis) {
+                    stopTracking() // auto-stop time or the 12 h cap
+                    break
+                }
+                val elapsed = (now - startTimeMillis) / 1000
                 _trackingState.update { it.copy(elapsedSeconds = elapsed) }
                 updateNotification(elapsed, _trackingState.value.snoreCount)
             }
@@ -346,6 +365,8 @@ class SleepTrackingService : Service() {
     }
 
     private fun stopTracking() {
+        // Auto-stop and a manual stop can race; the first one wins.
+        if (timerJob == null && audioAnalyzer == null) return
         val sessionId = currentSessionId
         val totalSnoreSeconds = _trackingState.value.totalSnoreSeconds
 
@@ -382,6 +403,7 @@ class SleepTrackingService : Service() {
 
             SleepLabApp.instance.clipRepository.purgeExpired()
 
+            SleepTrackingTileService.refresh(this@SleepTrackingService)
             releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -452,7 +474,8 @@ class SleepTrackingService : Service() {
                 "SleepLab:SleepTrackingWakeLock"
             ).apply {
                 setReferenceCounted(false)
-                acquire(10 * 60 * 60 * 1000L) // Max 10 hours safety
+                // Safety timeout just past the longest possible night
+                acquire(BedtimeSchedule.MAX_SESSION_MS + 10 * 60 * 1000L)
             }
         }
     }
@@ -501,7 +524,11 @@ data class TrackingState(
     /** End time of the last confirmed snore, 0 if none yet. */
     val lastSnoreAt: Long = 0L,
     /** Whether snore clips are being saved tonight. */
-    val clipsEnabled: Boolean = false
+    val clipsEnabled: Boolean = false,
+    /** When calibration/detection begin (after the start delay). */
+    val detectionStartsAt: Long = 0L,
+    /** When this night will stop automatically (auto-stop time or the 12 h cap). */
+    val stopAt: Long = 0L
 ) {
     companion object {
         /** Live waveform length: 60 frames of 100 ms. */

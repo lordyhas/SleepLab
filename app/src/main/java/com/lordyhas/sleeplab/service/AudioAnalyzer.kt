@@ -41,7 +41,9 @@ class AudioAnalyzer(
     /** When true, the last [CLIP_BUFFER_SECONDS] of audio stay in memory to cut snore clips from. */
     private val captureClips: Boolean = false,
     /** Audio around a confirmed snore (pre-roll + snore + post-roll), mono PCM-16. */
-    private val onClipAudio: (burst: SnoreBurst, samples: ShortArray, sampleRate: Int) -> Unit = { _, _, _ -> }
+    private val onClipAudio: (burst: SnoreBurst, samples: ShortArray, sampleRate: Int) -> Unit = { _, _, _ -> },
+    /** Time to let the user fall asleep: calibration and detection only begin after it. */
+    private val startDelayMs: Long = 0L
 ) {
 
     private var audioRecord: AudioRecord? = null
@@ -120,6 +122,7 @@ class AudioAnalyzer(
         val frame = ShortArray(FRAME_SAMPLES)
         val extractor = AudioFeatureExtractor(SAMPLE_RATE)
         val streamStart = System.currentTimeMillis()
+        val detectionStartsAt = streamStart + startDelayMs
         var framesProcessed = 0L
 
         while (isRecording && scope.isActive) {
@@ -138,6 +141,11 @@ class AudioAnalyzer(
             ring?.let { buffer ->
                 buffer.write(frame, 0, FRAME_SAMPLES)
                 deliverReadyClips(buffer)
+            }
+
+            if (timestamp < detectionStartsAt) {
+                onFrame(features.db, SoundClass.QUIET) // live level only, nothing detected yet
+                continue
             }
 
             if (calibrator != null && !calibrator.isComplete) {

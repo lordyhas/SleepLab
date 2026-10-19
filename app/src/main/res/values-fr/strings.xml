@@ -195,4 +195,27 @@
     <string name="play_clip">Écouter l’extrait</string>
     <string name="stop_clip">Arrêter l’extrait</string>
     <string name="tracking_clips_on">Enregistrement des ronflements activé</string>
+    <!-- Phase 4 : coucher -->
+    <string name="bedtime_section">Coucher</string>
+    <string name="start_delay_title">Délai de démarrage</string>
+    <string name="start_delay_desc">Le temps de vous endormir : la calibration et la détection commencent après ce délai.</string>
+    <string name="start_delay_off">Aucun</string>
+    <string name="auto_stop_title">Arrêt automatique</string>
+    <string name="auto_stop_desc">Termine la nuit à votre heure de réveil. Une nuit ne dure jamais plus de 12 h.</string>
+    <string name="reminder_setting_title">Rappel du coucher</string>
+    <string name="reminder_desc">Une notification à l’heure du coucher avec un raccourci pour lancer le suivi.</string>
+    <string name="reminder_notifications_off">Les notifications sont bloquées pour SleepLab, les rappels ne peuvent pas s’afficher.</string>
+    <string name="pick_time">Choisir une heure</string>
+    <string name="ok">OK</string>
+    <string name="reminder_title">L’heure de se détendre</string>
+    <string name="reminder_text">Lancez SleepLab avant de vous endormir pour suivre cette nuit.</string>
+    <string name="reminder_channel_name">Rappels du coucher</string>
+    <string name="tile_label">Suivi du sommeil</string>
+    <string name="tile_tap_to_start">Appuyer pour démarrer</string>
+    <string name="detection_starts_in">Détection dans %1$d min</string>
+    <string name="stops_at">Arrêt à %1$s</string>
+    <string name="battery_title">Brancher le chargeur ?</string>
+    <string name="battery_message">La batterie est à %1$d %% et ne charge pas. Le micro fonctionne toute la nuit et peut vider la batterie avant le matin.</string>
+    <string name="battery_start_anyway">Démarrer quand même</string>
+    <string name="battery_plug_in">Je le branche</string>
 </resources>

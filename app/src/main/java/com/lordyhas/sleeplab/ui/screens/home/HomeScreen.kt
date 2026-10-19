@@ -74,7 +74,7 @@ import com.lordyhas.sleeplab.ui.components.MorningRatingSelector
 import com.lordyhas.sleeplab.ui.components.Pill
 import com.lordyhas.sleeplab.ui.components.ScreenHeader
 import com.lordyhas.sleeplab.ui.components.SectionHeader
-import com.lordyhas.sleeplab.ui.components.rememberMicPermissionGate
+import com.lordyhas.sleeplab.ui.components.rememberStartNightGate
 import com.lordyhas.sleeplab.ui.theme.MoonGlow
 import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
@@ -100,7 +100,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val trackingState by viewModel.trackingState.collectAsState()
 
-    val startTracking = rememberMicPermissionGate {
+    val startTracking = rememberStartNightGate {
         viewModel.startTracking(context)
         onNavigateToTracking()
     }
@@ -156,6 +156,7 @@ fun HomeScreen(
 
         item {
             LastNightCard(
+                isLoaded = uiState.isLoaded,
                 latestSession = uiState.latestSession,
                 treatment = uiState.latestSessionTreatment,
                 onClick = { uiState.latestSession?.id?.let(onNavigateToSessionDetail) }
@@ -416,6 +417,7 @@ private fun TreatmentChip(label: String, selected: Boolean, onClick: () -> Unit)
 
 @Composable
 private fun LastNightCard(
+    isLoaded: Boolean,
     latestSession: SleepSessionEntity?,
     treatment: TreatmentEntity?,
     onClick: () -> Unit
@@ -453,6 +455,10 @@ private fun LastNightCard(
 
         Spacer(Modifier.height(16.dp))
 
+        if (!isLoaded) {
+            Spacer(Modifier.height(112.dp)) // same height as the score ring, no fake empty state
+            return@GlassCard
+        }
         if (latestSession == null) {
             Text(
                 stringResource(R.string.no_night_recorded),

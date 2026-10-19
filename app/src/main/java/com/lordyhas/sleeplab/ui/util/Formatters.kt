@@ -1,5 +1,8 @@
 package com.lordyhas.sleeplab.ui.util
 
+import android.content.Context
+import android.text.format.DateFormat
+import java.util.Calendar
 import java.util.Locale
 
 /** "01:02:03" — used for live timers. */
@@ -19,6 +22,15 @@ fun formatDuration(totalSeconds: Long): String {
         m > 0 -> "${m}m ${String.format(Locale.ROOT, "%02d", sec)}s"
         else -> "${sec}s"
     }
+}
+
+/** "07:30" or "7:30 AM" following the phone's 12/24 h setting. */
+fun formatMinuteOfDay(context: Context, minuteOfDay: Int): String {
+    val cal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, minuteOfDay / 60)
+        set(Calendar.MINUTE, minuteOfDay % 60)
+    }
+    return DateFormat.getTimeFormat(context).format(cal.time)
 }
 
 fun sessionDurationSeconds(startTime: Long, endTime: Long): Long =

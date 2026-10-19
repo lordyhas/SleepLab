@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
+    /** False until the database has answered once (avoids flashing "no night yet"). */
+    val isLoaded: Boolean = false,
     val latestSession: SleepSessionEntity? = null,
     val latestSessionTreatment: TreatmentEntity? = null,
     val totalSessionsCount: Int = 0,
@@ -50,6 +52,7 @@ class HomeViewModel(
         } else 0
 
         HomeUiState(
+            isLoaded = true,
             latestSession = latest,
             latestSessionTreatment = latestTreatment,
             totalSessionsCount = completedSessions.size,
