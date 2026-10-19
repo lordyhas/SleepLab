@@ -147,7 +147,7 @@
     <string name="notif_text">Durée %1$s · Ronflements : %2$d</string>
     <string name="notif_stop">Arrêter</string>
     <string name="mic_permission_title">Microphone requis</string>
-    <string name="mic_permission_message">SleepLab détecte les ronflements grâce au microphone. L\'audio est analysé sur l\'appareil, jamais enregistré ni envoyé. Autorisez l\'accès au microphone dans les Réglages pour lancer le suivi.</string>
+    <string name="mic_permission_message">SleepLab détecte les ronflements grâce au microphone. L’audio est analysé sur l’appareil et ne le quitte jamais ; de courts extraits ne sont conservés que si vous activez les enregistrements. Autorisez l’accès au microphone dans les Réglages pour lancer le suivi.</string>
     <string name="open_settings">Ouvrir les réglages</string>
     <!-- Phase 1 : calibration, notes, note du matin, suppression -->
     <string name="calibrating_room">Mesure du bruit ambiant… %1$d s</string>
@@ -179,4 +179,20 @@
     <string name="sound_snoring">Ronflement</string>
     <string name="sound_snore_like">Son de type ronflement</string>
     <string name="sound_other_noise">Autre bruit · ignoré</string>
+    <!-- Phase 3 : extraits audio -->
+    <string name="clips_title">Enregistrements des ronflements</string>
+    <string name="clips_desc">Gardez de courts extraits de vos ronflements les plus forts pour les réécouter. Ils ne quittent jamais ce téléphone.</string>
+    <string name="clips_consent_title">Enregistrer les ronflements ?</string>
+    <string name="clips_consent_message">Quand un ronflement est détecté, SleepLab conserve environ 5 secondes d’audio autour, jusqu’à 30 des plus forts par nuit. Les extraits restent uniquement sur ce téléphone : exclus des sauvegardes, jamais envoyés, et supprimés automatiquement après la durée choisie. Les autres sons ne sont pas enregistrés, sauf s’ils ont été pris pour un ronflement.</string>
+    <string name="clips_consent_confirm">Activer</string>
+    <string name="clips_keep_for">Conserver les enregistrements</string>
+    <string name="clips_days">%1$d jours</string>
+    <string name="clips_forever">Toujours</string>
+    <string name="clips_storage">%1$s utilisés sur ce téléphone</string>
+    <string name="clips_delete_all">Tout supprimer</string>
+    <string name="clips_delete_all_title">Supprimer tous les enregistrements ?</string>
+    <string name="clips_delete_all_message">Tous les extraits de ronflement seront supprimés. Vos nuits et statistiques sont conservées.</string>
+    <string name="play_clip">Écouter l’extrait</string>
+    <string name="stop_clip">Arrêter l’extrait</string>
+    <string name="tracking_clips_on">Enregistrement des ronflements activé</string>
 </resources>

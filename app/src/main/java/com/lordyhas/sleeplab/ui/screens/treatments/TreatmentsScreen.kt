@@ -83,6 +83,9 @@ fun TreatmentsScreen(
     val treatments by viewModel.treatments.collectAsState()
     val thresholdDb by viewModel.thresholdDb.collectAsState()
     val autoCalibrate by viewModel.autoCalibrate.collectAsState()
+    val clipsEnabled by viewModel.clipsEnabled.collectAsState()
+    val clipRetentionDays by viewModel.clipRetentionDays.collectAsState()
+    val clipStorageBytes by viewModel.clipStorageBytes.collectAsState()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<TreatmentEntity?>(null) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -103,6 +106,15 @@ fun TreatmentsScreen(
                     onAutoCalibrateChange = viewModel::setAutoCalibrate,
                     thresholdDb = thresholdDb,
                     onThresholdChange = viewModel::updateThreshold
+                )
+                Spacer(Modifier.height(14.dp))
+                ClipsSettingsCard(
+                    enabled = clipsEnabled,
+                    retentionDays = clipRetentionDays,
+                    storageBytes = clipStorageBytes,
+                    onEnabledChange = viewModel::setClipsEnabled,
+                    onRetentionChange = viewModel::setClipRetentionDays,
+                    onDeleteAll = viewModel::deleteAllClips
                 )
             }
 

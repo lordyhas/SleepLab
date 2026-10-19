@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
+import com.lordyhas.sleeplab.service.clips.PcmRingBuffer
 import com.lordyhas.sleeplab.service.detection.AdaptiveFloor
 import com.lordyhas.sleeplab.service.detection.AudioFeatureExtractor
 import com.lordyhas.sleeplab.service.detection.SnoreBurst
@@ -23,7 +24,8 @@ import kotlinx.coroutines.launch
  * Audio is analysed in fixed 100 ms frames: [AudioFeatureExtractor] measures level and low-band
  * ratio, [NoiseFloorCalibrator] (optional) measures the room first, [SnoreDetector] finds rhythmic
  * low-pitched bursts, and [AdaptiveFloor] keeps the threshold following the room when calibrated.
- * Nothing is stored or sent: only the derived numbers leave this class.
+ * Raw audio never leaves this class except as short clips around confirmed snores, and only when
+ * [captureClips] is on (opt-in); nothing is sent anywhere.
  */
 class AudioAnalyzer(
     private val scope: CoroutineScope,
@@ -35,7 +37,11 @@ class AudioAnalyzer(
     private val onSnoreDetected: (burst: SnoreBurst, thresholdDb: Float) -> Unit,
     private val onCalibrationProgress: (progress: Float) -> Unit = {},
     private val onCalibrated: (CalibrationResult) -> Unit = {},
-    private val onThresholdAdapted: (thresholdDb: Float, noiseFloorDb: Float) -> Unit = { _, _ -> }
+    private val onThresholdAdapted: (thresholdDb: Float, noiseFloorDb: Float) -> Unit = { _, _ -> },
+    /** When true, the last [CLIP_BUFFER_SECONDS] of audio stay in memory to cut snore clips from. */
+    private val captureClips: Boolean = false,
+    /** Audio around a confirmed snore (pre-roll + snore + post-roll), mono PCM-16. */
+    private val onClipAudio: (burst: SnoreBurst, samples: ShortArray, sampleRate: Int) -> Unit = { _, _, _ -> }
 ) {
 
     private var audioRecord: AudioRecord? = null
@@ -46,6 +52,10 @@ class AudioAnalyzer(
     private val detector = SnoreDetector(thresholdDb)
     private var adaptiveFloor: AdaptiveFloor? = null
 
+    private class ClipRequest(val burst: SnoreBurst, val fromSample: Long, val toSample: Long)
+    private val ring = if (captureClips) PcmRingBuffer(SAMPLE_RATE * CLIP_BUFFER_SECONDS) else null
+    private val clipRequests = mutableListOf<ClipRequest>()
+
     companion object {
         private const val TAG = "AudioAnalyzer"
         private const val SAMPLE_RATE = 16000
@@ -53,6 +63,11 @@ class AudioAnalyzer(
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val FRAME_MS = 100L
         private const val FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS / 1000).toInt()
+
+        /** Long enough to reach back to the first of the 3 bursts that confirm a rhythm. */
+        const val CLIP_BUFFER_SECONDS = 25
+        private const val CLIP_PRE_ROLL_MS = 1_000L
+        private const val CLIP_POST_ROLL_MS = 1_500L
     }
 
     @SuppressLint("MissingPermission")
@@ -120,6 +135,10 @@ class AudioAnalyzer(
             val timestamp = streamStart + framesProcessed * FRAME_MS
             framesProcessed++
             val features = extractor.extract(frame, 0, FRAME_SAMPLES)
+            ring?.let { buffer ->
+                buffer.write(frame, 0, FRAME_SAMPLES)
+                deliverReadyClips(buffer)
+            }
 
             if (calibrator != null && !calibrator.isComplete) {
                 onFrame(features.db, SoundClass.QUIET)
@@ -146,6 +165,27 @@ class AudioAnalyzer(
 
             detector.onFrame(timestamp, FRAME_MS, features).forEach { burst ->
                 onSnoreDetected(burst, detector.thresholdDb)
+                if (ring != null) {
+                    fun sampleAt(timeMs: Long) = (timeMs - streamStart) * SAMPLE_RATE / 1000
+                    clipRequests += ClipRequest(
+                        burst = burst,
+                        fromSample = sampleAt(burst.startMs - CLIP_PRE_ROLL_MS).coerceAtLeast(0),
+                        toSample = sampleAt(burst.startMs + burst.durationMs + CLIP_POST_ROLL_MS)
+                    )
+                }
+            }
+        }
+    }
+
+    /** Hands out clips whose post-roll has now been recorded. */
+    private fun deliverReadyClips(buffer: PcmRingBuffer) {
+        val iterator = clipRequests.iterator()
+        while (iterator.hasNext()) {
+            val request = iterator.next()
+            if (buffer.writtenSamples < request.toSample) continue
+            iterator.remove()
+            buffer.read(request.fromSample, request.toSample)?.let { samples ->
+                onClipAudio(request.burst, samples, SAMPLE_RATE)
             }
         }
     }

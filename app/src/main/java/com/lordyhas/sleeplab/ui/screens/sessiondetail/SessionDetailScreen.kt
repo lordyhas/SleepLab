@@ -20,6 +20,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.lordyhas.sleeplab.ui.components.MorningRatingSelector
+import com.lordyhas.sleeplab.ui.components.rememberClipPlayer
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -116,6 +121,7 @@ fun SessionDetailScreen(
     val viewModel: SessionDetailViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    val clipPlayer = rememberClipPlayer()
     var showNoteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isDeleted) {
@@ -346,7 +352,12 @@ fun SessionDetailScreen(
                                     if (index > 0) {
                                         HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
                                     }
-                                    SnoreEventRow(event = event, time = timeFormat.format(Date(event.timestamp)))
+                                    SnoreEventRow(
+                                        event = event,
+                                        time = timeFormat.format(Date(event.timestamp)),
+                                        isPlaying = event.clipPath != null && clipPlayer.playingPath == event.clipPath,
+                                        onPlay = { event.clipPath?.let(clipPlayer::toggle) }
+                                    )
                                 }
                             }
                         }
@@ -471,16 +482,33 @@ private fun LegendItem(color: Color, label: String) {
 }
 
 @Composable
-private fun SnoreEventRow(event: SnoreEventEntity, time: String) {
+private fun SnoreEventRow(event: SnoreEventEntity, time: String, isPlaying: Boolean, onPlay: () -> Unit) {
     val color = snoreLevelColor(event.amplitude)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = if (event.clipPath != null) 4.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Dot(color = color, size = 10.dp)
-        Spacer(Modifier.width(12.dp))
+        if (event.clipPath != null) {
+            FilledTonalIconButton(
+                onClick = onPlay,
+                modifier = Modifier.size(40.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = color.copy(alpha = 0.16f),
+                    contentColor = color
+                )
+            ) {
+                Icon(
+                    if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                    contentDescription = stringResource(if (isPlaying) R.string.stop_clip else R.string.play_clip)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        } else {
+            Dot(color = color, size = 10.dp)
+            Spacer(Modifier.width(12.dp))
+        }
         Text(time, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
         Text(
             formatDuration(event.durationSeconds.toLong()),

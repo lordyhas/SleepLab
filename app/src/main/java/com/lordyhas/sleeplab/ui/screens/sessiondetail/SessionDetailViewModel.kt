@@ -90,6 +90,11 @@ class SessionDetailViewModel(
         // Flag first: deleting makes the observed session emit null, which must not
         // flash "session not found" before the screen closes.
         _uiState.update { it.copy(isDeleted = true) }
-        viewModelScope.launch { sessionRepository.deleteNight(sessionId) }
+        // App scope, not viewModelScope: the screen closes right away and clearing this
+        // ViewModel would otherwise cancel the delete half-way.
+        SleepLabApp.instance.appScope.launch {
+            SleepLabApp.instance.clipRepository.deleteSessionClips(sessionId)
+            sessionRepository.deleteNight(sessionId)
+        }
     }
 }
