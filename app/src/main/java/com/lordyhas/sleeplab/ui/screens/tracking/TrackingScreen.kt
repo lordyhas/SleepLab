@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -57,8 +58,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,12 +74,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.os.SystemClock
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lordyhas.sleeplab.ui.screens.nightscreen.NightScreenActivity
 import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.service.NoiseFloorCalibrator
 import com.lordyhas.sleeplab.service.TrackingState
@@ -110,6 +120,9 @@ import kotlin.math.ceil
 /** How long "Snoring" stays shown after the last confirmed snore. */
 private const val SNORING_DISPLAY_MS = 8_000L
 
+/** Time without a touch before the tracking screen gives way to the night screen. */
+private const val NIGHT_SCREEN_IDLE_MS = 30_000L
+
 /** dB range mapped onto the live gauge. */
 private const val GAUGE_MIN_DB = 20f
 private const val GAUGE_MAX_DB = 90f
@@ -126,6 +139,7 @@ fun TrackingScreen(
     val trackingState by viewModel.trackingState.collectAsState()
     val allTreatments by viewModel.allTreatments.collectAsState()
     val plannedTreatment by viewModel.plannedTreatment.collectAsState()
+    val nightScreenEnabled by viewModel.nightScreenEnabled.collectAsState()
 
     val startTracking = rememberStartNightGate { viewModel.startTracking(context) }
     LaunchedEffect(startRequested) {
@@ -154,6 +168,8 @@ fun TrackingScreen(
                 ActiveTrackingContent(
                     state = trackingState,
                     treatmentName = treatmentName,
+                    autoNightScreen = nightScreenEnabled,
+                    onOpenNightScreen = { NightScreenActivity.start(context) },
                     onStop = { viewModel.stopTracking(context) }
                 )
             } else {
@@ -172,8 +188,29 @@ fun TrackingScreen(
 private fun ActiveTrackingContent(
     state: TrackingState,
     treatmentName: String,
+    autoNightScreen: Boolean,
+    onOpenNightScreen: () -> Unit,
     onStop: () -> Unit
 ) {
+    // Left alone for a while (phone put down for the night): hand over to the dark night screen.
+    // Coming back to this screen counts as activity, so it does not bounce straight back.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var lastActivity by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    LifecycleResumeEffect(Unit) {
+        lastActivity = SystemClock.elapsedRealtime()
+        onPauseOrDispose { }
+    }
+    val currentOnOpenNightScreen by rememberUpdatedState(onOpenNightScreen)
+    LaunchedEffect(lastActivity, autoNightScreen) {
+        if (autoNightScreen) {
+            delay(NIGHT_SCREEN_IDLE_MS)
+            // Never from the background: the user may have left the app meanwhile.
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                currentOnOpenNightScreen()
+            }
+        }
+    }
+
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val dbColor = snoreLevelColor(state.currentDb)
     val thresholdDb = state.thresholdDb
@@ -197,7 +234,19 @@ private fun ActiveTrackingContent(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                // Observe touches without consuming them.
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        lastActivity = SystemClock.elapsedRealtime()
+                    }
+                }
+            }
+    ) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -207,6 +256,16 @@ private fun ActiveTrackingContent(
             ScreenHeader(
                 title = stringResource(R.string.sleep_tracking),
                 overline = stringResource(R.string.tracking_since, timeFormat.format(Date(state.startTime)))
+            )
+            Spacer(Modifier.height(4.dp))
+            Pill(
+                text = stringResource(R.string.night_screen_title),
+                color = MoonGlow,
+                icon = Icons.Default.DarkMode,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .clip(CircleShape)
+                    .clickable(onClick = onOpenNightScreen)
             )
             Spacer(Modifier.height(4.dp))
             Pill(

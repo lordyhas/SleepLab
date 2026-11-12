@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.AlertDialog
@@ -63,6 +64,8 @@ fun BedtimeSettingsCard(
     autoStopMinuteOfDay: Int,
     reminderEnabled: Boolean,
     reminderMinuteOfDay: Int,
+    nightScreenEnabled: Boolean,
+    onNightScreenChange: (Boolean) -> Unit,
     onStartDelayChange: (Int) -> Unit,
     onAutoStopChange: (enabled: Boolean, minuteOfDay: Int) -> Unit,
     onReminderChange: (enabled: Boolean, minuteOfDay: Int) -> Unit
@@ -121,6 +124,24 @@ fun BedtimeSettingsCard(
                     shape = CircleShape
                 )
             }
+        }
+
+        SectionDivider()
+
+        // Night screen
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon = Icons.Default.DarkMode, tint = SleepIndigoLight)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.night_screen_title), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.night_screen_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = nightScreenEnabled, onCheckedChange = onNightScreenChange)
         }
 
         SectionDivider()

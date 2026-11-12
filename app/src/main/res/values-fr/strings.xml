@@ -261,4 +261,9 @@
     <string name="mic_failed_notif_text">Le micro a cessé de répondre, le suivi s’est donc arrêté plus tôt. Ce qui a été enregistré jusque-là est conservé.</string>
     <string name="battery_opt_title">Enregistrer toute la nuit</string>
     <string name="battery_opt_message">L’optimisation de la batterie peut arrêter SleepLab en pleine nuit. Dans les réglages système, ouvrez Batterie et choisissez « Non restreinte » (ou « Ne pas optimiser ») pour SleepLab.</string>
+    <!-- Écran de nuit -->
+    <string name="night_screen_title">Écran de nuit</string>
+    <string name="night_screen_desc">Après 30 s sans toucher le téléphone pendant une nuit, affiche une horloge sombre. Elle apparaît aussi par-dessus l’écran de verrouillage.</string>
+    <string name="night_screen_recording">Enregistrement · %1$s</string>
+    <string name="night_screen_open_app">Ouvrir SleepLab</string>
 </resources>

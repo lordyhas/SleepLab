@@ -257,4 +257,9 @@
     <string name="mic_failed_notif_text">The microphone stopped responding, so tracking ended early. What was recorded until then is saved.</string>
     <string name="battery_opt_title">Keep recording all night</string>
     <string name="battery_opt_message">Battery optimisation can stop SleepLab in the middle of the night. In the system settings, open Battery and choose “Unrestricted” (or “Don’t optimise”) for SleepLab.</string>
+    <!-- Night screen -->
+    <string name="night_screen_title">Night screen</string>
+    <string name="night_screen_desc">After 30 s without touching the phone during a night, show a dark clock. It also appears over the lock screen.</string>
+    <string name="night_screen_recording">Recording · %1$s</string>
+    <string name="night_screen_open_app">Open SleepLab</string>
 </resources>

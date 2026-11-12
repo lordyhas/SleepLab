@@ -33,6 +33,9 @@ class TrackingViewModel(
         active.firstOrNull { it.id == id }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /** Whether the dark night screen takes over once the phone is left alone during a night. */
+    val nightScreenEnabled: StateFlow<Boolean> = settingsRepository.nightScreenEnabled
+
     fun startTracking(context: Context) {
         SleepTrackingService.startService(
             context,
