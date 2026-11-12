@@ -30,6 +30,10 @@ interface SleepSessionDao {
     @Query("SELECT * FROM sleep_sessions WHERE startTime >= :fromTime AND startTime <= :toTime ORDER BY startTime ASC")
     fun getSessionsBetween(fromTime: Long, toTime: Long): Flow<List<SleepSessionEntity>>
 
+    /** Nights that were started but never closed (still recording, or cut short). */
+    @Query("SELECT * FROM sleep_sessions WHERE endTime = 0")
+    suspend fun getOpenSessions(): List<SleepSessionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: SleepSessionEntity): Long
 

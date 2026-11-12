@@ -254,4 +254,11 @@
     <string name="rating_vs_snoring_title">Ronflements et forme du matin</string>
     <string name="rating_vs_snoring_hint">Notez au moins %1$d nuits pour voir ceci (%2$d pour l’instant).</string>
     <string name="avg_snore_under_one">&lt; 1 min / nuit</string>
+    <!-- Fiabilité -->
+    <string name="not_now">Plus tard</string>
+    <string name="mic_failed_title">Enregistrement arrêté : micro indisponible</string>
+    <string name="mic_failed_message">SleepLab n’a reçu aucun son du micro : la nuit a été arrêtée plutôt que d’enregistrer du silence. Ce qui a été capté avant est conservé. Fermez toute application qui pourrait utiliser le micro, puis relancez le suivi.</string>
+    <string name="mic_failed_notif_text">Le micro a cessé de répondre, le suivi s’est donc arrêté plus tôt. Ce qui a été enregistré jusque-là est conservé.</string>
+    <string name="battery_opt_title">Enregistrer toute la nuit</string>
+    <string name="battery_opt_message">L’optimisation de la batterie peut arrêter SleepLab en pleine nuit. Dans les réglages système, ouvrez Batterie et choisissez « Non restreinte » (ou « Ne pas optimiser ») pour SleepLab.</string>
 </resources>

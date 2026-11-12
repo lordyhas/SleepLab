@@ -60,6 +60,15 @@ class SettingsRepository(context: Context) {
      */
     val treatmentChoice: StateFlow<Int> = _treatmentChoice.asStateFlow()
 
+    private val _batteryHintDismissed = MutableStateFlow(prefs.getBoolean(KEY_BATTERY_HINT_DISMISSED, false))
+    /** The user chose not to be reminded about battery optimisation on the Tracking tab. */
+    val batteryHintDismissed: StateFlow<Boolean> = _batteryHintDismissed.asStateFlow()
+
+    fun setBatteryHintDismissed(dismissed: Boolean) {
+        _batteryHintDismissed.value = dismissed
+        prefs.edit().putBoolean(KEY_BATTERY_HINT_DISMISSED, dismissed).apply()
+    }
+
     fun setThresholdDb(value: Float) {
         _thresholdDb.value = value
         prefs.edit().putFloat(KEY_THRESHOLD_DB, value).apply()
@@ -128,6 +137,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_AUTO_STOP_MINUTE = "auto_stop_minute"
         private const val KEY_REMINDER_ENABLED = "reminder_enabled"
         private const val KEY_REMINDER_MINUTE = "reminder_minute"
+        private const val KEY_BATTERY_HINT_DISMISSED = "battery_hint_dismissed"
 
         /**
          * Turns a stored choice into the treatment id to record with, falling back to the first

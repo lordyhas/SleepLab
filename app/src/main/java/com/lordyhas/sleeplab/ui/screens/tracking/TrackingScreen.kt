@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -80,6 +81,7 @@ import com.lordyhas.sleeplab.R
 import com.lordyhas.sleeplab.service.NoiseFloorCalibrator
 import com.lordyhas.sleeplab.service.TrackingState
 import com.lordyhas.sleeplab.service.detection.SoundClass
+import com.lordyhas.sleeplab.ui.components.BatteryOptimizationCard
 import com.lordyhas.sleeplab.ui.components.GaugeRing
 import com.lordyhas.sleeplab.ui.components.GlassCard
 import com.lordyhas.sleeplab.ui.components.HoldToConfirmButton
@@ -156,6 +158,7 @@ fun TrackingScreen(
                 )
             } else {
                 InactiveTrackingContent(
+                    microphoneFailed = trackingState.microphoneFailed,
                     plannedTreatmentName = plannedTreatment?.name ?: stringResource(R.string.no_treatment),
                     onTreatmentClick = onNavigateToTreatments,
                     onStart = startTracking
@@ -489,6 +492,7 @@ private fun WaveformVisualizer(
 
 @Composable
 private fun InactiveTrackingContent(
+    microphoneFailed: Boolean,
     plannedTreatmentName: String,
     onTreatmentClick: () -> Unit,
     onStart: () -> Unit
@@ -501,6 +505,23 @@ private fun InactiveTrackingContent(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ScreenHeader(title = stringResource(R.string.sleep_tracking))
+
+            if (microphoneFailed) {
+                Spacer(Modifier.height(16.dp))
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(icon = Icons.Default.MicOff, tint = SnoreHigh, size = 32.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.mic_failed_title), style = MaterialTheme.typography.titleSmall)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        stringResource(R.string.mic_failed_message),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -542,6 +563,8 @@ private fun InactiveTrackingContent(
             )
 
             Spacer(Modifier.height(24.dp))
+
+            BatteryOptimizationCard(modifier = Modifier.padding(bottom = 12.dp))
 
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.tips_title), style = MaterialTheme.typography.titleSmall)
