@@ -86,6 +86,15 @@ Goal: a night is never lost or silently empty.
 **Test:** start a night, force-stop the app after 2 min, reopen → the night is in the history ·
 the battery card opens the app's system page and disappears once set to "Unrestricted".
 
+## Night screen (`feat/night-screen`)
+
+- [ ] **Night screen** — black, dimmed clock that takes over 30 s after the phone is put down during
+      a night, also shown over the lock screen (clock, stop and "open app" only). Setting to turn
+      the automatic switch off.
+
+**Test:** start a night, leave the phone 30 s → dark clock · lock, wake the phone → clock over the
+lock screen, no unlock · "Open SleepLab" asks for the unlock · stop from the night screen saves the night.
+
 ## Release 1.0 — first official version (`chore/release`)
 
 - [ ] **Release build** — signing config read from an untracked `key.properties`, R8 + resource

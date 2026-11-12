@@ -69,6 +69,15 @@ class SettingsRepository(context: Context) {
         prefs.edit().putBoolean(KEY_BATTERY_HINT_DISMISSED, dismissed).apply()
     }
 
+    private val _nightScreenEnabled = MutableStateFlow(prefs.getBoolean(KEY_NIGHT_SCREEN_ENABLED, true))
+    /** Switch to the dark night screen automatically once tracking runs and the phone is left alone. */
+    val nightScreenEnabled: StateFlow<Boolean> = _nightScreenEnabled.asStateFlow()
+
+    fun setNightScreenEnabled(enabled: Boolean) {
+        _nightScreenEnabled.value = enabled
+        prefs.edit().putBoolean(KEY_NIGHT_SCREEN_ENABLED, enabled).apply()
+    }
+
     fun setThresholdDb(value: Float) {
         _thresholdDb.value = value
         prefs.edit().putFloat(KEY_THRESHOLD_DB, value).apply()
@@ -137,6 +146,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_AUTO_STOP_MINUTE = "auto_stop_minute"
         private const val KEY_REMINDER_ENABLED = "reminder_enabled"
         private const val KEY_REMINDER_MINUTE = "reminder_minute"
+        private const val KEY_NIGHT_SCREEN_ENABLED = "night_screen_enabled"
         private const val KEY_BATTERY_HINT_DISMISSED = "battery_hint_dismissed"
 
         /**

@@ -87,6 +87,7 @@ fun TreatmentsScreen(
     val clipRetentionDays by viewModel.clipRetentionDays.collectAsState()
     val clipStorageBytes by viewModel.clipStorageBytes.collectAsState()
     val startDelayMinutes by viewModel.startDelayMinutes.collectAsState()
+    val nightScreenEnabled by viewModel.nightScreenEnabled.collectAsState()
     val autoStopEnabled by viewModel.autoStopEnabled.collectAsState()
     val autoStopMinuteOfDay by viewModel.autoStopMinuteOfDay.collectAsState()
     val reminderEnabled by viewModel.reminderEnabled.collectAsState()
@@ -133,6 +134,8 @@ fun TreatmentsScreen(
                     autoStopMinuteOfDay = autoStopMinuteOfDay,
                     reminderEnabled = reminderEnabled,
                     reminderMinuteOfDay = reminderMinuteOfDay,
+                    nightScreenEnabled = nightScreenEnabled,
+                    onNightScreenChange = viewModel::setNightScreenEnabled,
                     onStartDelayChange = viewModel::setStartDelayMinutes,
                     onAutoStopChange = viewModel::setAutoStop,
                     onReminderChange = viewModel::setReminder

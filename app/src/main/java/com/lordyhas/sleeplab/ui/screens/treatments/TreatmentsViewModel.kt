@@ -71,6 +71,9 @@ class TreatmentsViewModel(
 
     fun setStartDelayMinutes(minutes: Int) = settingsRepository.setStartDelayMinutes(minutes)
 
+    val nightScreenEnabled: StateFlow<Boolean> = settingsRepository.nightScreenEnabled
+    fun setNightScreenEnabled(enabled: Boolean) = settingsRepository.setNightScreenEnabled(enabled)
+
     fun setAutoStop(enabled: Boolean, minuteOfDay: Int) = settingsRepository.setAutoStop(enabled, minuteOfDay)
 
     fun setReminder(enabled: Boolean, minuteOfDay: Int) {

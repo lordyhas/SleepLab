@@ -6,4 +6,10 @@
         <item name="android:windowBackground">@color/night_background</item>
         <item name="android:colorBackground">@color/night_background</item>
     </style>
+
+    <!-- Pure black from the first frame: this screen must never flash in a dark bedroom. -->
+    <style name="Theme.SleepLab.NightScreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+    </style>
 </resources>
