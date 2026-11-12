@@ -52,5 +52,22 @@ The app follows a modern Android architecture:
 
 Unit tests and lint also run on every pull request (`.github/workflows/ci.yml`). Planned work is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Releasing
+
+A release is built only when a commit lands on the `production` branch (`.github/workflows/release.yml`), typically by merging `main` into it. The workflow runs the unit tests and lint, builds a signed APK and App Bundle, and publishes a GitHub Release tagged `v<versionName>` with both files and their checksums.
+
+Before each release, bump `versionName` and `versionCode` in `app/build.gradle.kts`: the workflow stops if the tag already exists.
+
+One-time setup — repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `SLEEPLAB_KEYSTORE_BASE64` | the release keystore, base64-encoded (`base64 -w0 release.keystore`) |
+| `SLEEPLAB_KEYSTORE_PASSWORD` | keystore password |
+| `SLEEPLAB_KEY_ALIAS` | key alias |
+| `SLEEPLAB_KEY_PASSWORD` | key password |
+
+To build a signed release locally, create an untracked `key.properties` at the project root with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, then run `./gradlew assembleRelease`. Without it the release build is left unsigned. Keep the keystore safe: updates must be signed with the same key.
+
 ## License
 This project is open-source. Please check the `LICENSE` file for more details.

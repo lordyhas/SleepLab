@@ -1,8 +1,28 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Release signing: values come from an untracked `key.properties` at the project root (local
+// builds) or from environment variables (CI). Without them the release build is left unsigned.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(property: String, envVariable: String): String? =
+    (keystoreProperties.getProperty(property) ?: providers.environmentVariable(envVariable).orNull)
+        ?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingValue("storeFile", "SLEEPLAB_KEYSTORE_FILE")
+val releaseStorePassword = signingValue("storePassword", "SLEEPLAB_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingValue("keyAlias", "SLEEPLAB_KEY_ALIAS")
+val releaseKeyPassword = signingValue("keyPassword", "SLEEPLAB_KEY_PASSWORD")
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+    .all { it != null }
 
 android {
     namespace = "com.lordyhas.sleeplab"
@@ -20,8 +40,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             optimization {
                 enable = false
             }

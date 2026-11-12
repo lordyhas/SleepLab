@@ -97,8 +97,12 @@ lock screen, no unlock · "Open SleepLab" asks for the unlock · stop from the n
 
 ## Release 1.0 — first official version (`chore/release`)
 
-- [ ] **Release build** — signing config read from an untracked `key.properties`, R8 + resource
-      shrinking on, ProGuard rules checked on a real night.
+- [x] **Release signing + CD** — signing config read from an untracked `key.properties` or CI
+      secrets; `.github/workflows/release.yml` builds and publishes a GitHub Release when a commit
+      lands on `production`.
+- [ ] **Release keystore** — create it, add the four `SLEEPLAB_*` repository secrets, create the
+      `production` branch.
+- [ ] **R8** — code + resource shrinking on, ProGuard rules checked on a real night.
 - [ ] **Version** — settle `versionName` / `versionCode`, tag the release.
 - [ ] **Device validation** — several full nights on the release build, including an upgrade over
       an older install (old nights must survive).
