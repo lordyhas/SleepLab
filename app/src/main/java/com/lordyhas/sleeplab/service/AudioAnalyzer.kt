@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.SystemClock
 import android.util.Log
 import com.lordyhas.sleeplab.service.clips.PcmRingBuffer
 import com.lordyhas.sleeplab.service.detection.AdaptiveFloor
@@ -43,7 +44,9 @@ class AudioAnalyzer(
     /** Audio around a confirmed snore (pre-roll + snore + post-roll), mono PCM-16. */
     private val onClipAudio: (burst: SnoreBurst, samples: ShortArray, sampleRate: Int) -> Unit = { _, _, _ -> },
     /** Time to let the user fall asleep: calibration and detection only begin after it. */
-    private val startDelayMs: Long = 0L
+    private val startDelayMs: Long = 0L,
+    /** The microphone stopped delivering audio mid-night and could not be reopened; analysis has ended. */
+    private val onMicrophoneLost: () -> Unit = {}
 ) {
 
     private var audioRecord: AudioRecord? = null
@@ -70,12 +73,34 @@ class AudioAnalyzer(
         const val CLIP_BUFFER_SECONDS = 25
         private const val CLIP_PRE_ROLL_MS = 1_000L
         private const val CLIP_POST_ROLL_MS = 1_500L
+
+        /** No audio at all for this long means the stream is dead, not just slow. */
+        private const val STALL_TIMEOUT_MS = 5_000L
+        private const val REOPEN_ATTEMPTS = 5
+        /** Wait before each reopen attempt, growing linearly (2 s, 4 s … ≈ 30 s in total). */
+        private const val REOPEN_DELAY_MS = 2_000L
     }
 
-    @SuppressLint("MissingPermission")
-    fun start() {
-        if (isRecording) return
+    /**
+     * Opens the microphone and starts analysing.
+     *
+     * @return false when the microphone could not be opened; nothing is running then.
+     */
+    fun start(): Boolean {
+        if (isRecording) return true
 
+        val record = openRecord() ?: return false
+        audioRecord = record
+        isRecording = true
+        recordingJob = scope.launch(Dispatchers.IO) {
+            processAudioStream()
+        }
+        return true
+    }
+
+    /** A recording [AudioRecord], or null if the microphone is unavailable. */
+    @SuppressLint("MissingPermission")
+    private fun openRecord(): AudioRecord? {
         val minBufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             CHANNEL_CONFIG,
@@ -84,38 +109,60 @@ class AudioAnalyzer(
 
         if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
             Log.e(TAG, "AudioRecord minBufferSize error")
-            return
+            return null
         }
 
         // Internal buffer in bytes: room for several frames so reads never overrun.
         val bufferBytes = maxOf(minBufferSize * 2, FRAME_SAMPLES * 2 * 4)
 
-        try {
-            audioRecord = AudioRecord(
+        var record: AudioRecord? = null
+        return try {
+            record = AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 SAMPLE_RATE,
                 CHANNEL_CONFIG,
                 AUDIO_FORMAT,
                 bufferBytes
             )
-
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord could not be initialized")
-                audioRecord?.release()
-                audioRecord = null
-                return
-            }
-
-            audioRecord?.startRecording()
-            isRecording = true
-
-            recordingJob = scope.launch(Dispatchers.IO) {
-                processAudioStream()
-            }
+            check(record.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord could not be initialized" }
+            record.startRecording()
+            check(record.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord did not start" }
+            record
         } catch (e: Exception) {
-            Log.e(TAG, "Exception starting AudioRecord", e)
-            stop()
+            Log.e(TAG, "Could not open the microphone", e)
+            releaseQuietly(record)
+            null
         }
+    }
+
+    private fun releaseQuietly(record: AudioRecord?) {
+        try {
+            record?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing AudioRecord", e)
+        }
+    }
+
+    /**
+     * The stream broke mid-night (read error, or no audio for [STALL_TIMEOUT_MS]): drop the dead
+     * recorder and try to open a new one a few times before giving up.
+     */
+    private suspend fun reopenRecord(): AudioRecord? {
+        releaseQuietly(audioRecord)
+        audioRecord = null
+        repeat(REOPEN_ATTEMPTS) { attempt ->
+            delay(REOPEN_DELAY_MS * (attempt + 1))
+            if (!isRecording) return null
+            openRecord()?.let { record ->
+                if (isRecording) {
+                    audioRecord = record
+                    return record
+                }
+                releaseQuietly(record) // stopped while reopening
+                return null
+            }
+        }
+        return null
     }
 
     private suspend fun processAudioStream() {
@@ -124,18 +171,38 @@ class AudioAnalyzer(
         val streamStart = System.currentTimeMillis()
         val detectionStartsAt = streamStart + startDelayMs
         var framesProcessed = 0L
+        // Time lost while the microphone was being reopened: audio frames stay contiguous, the clock doesn't.
+        var gapMs = 0L
 
         while (isRecording && scope.isActive) {
             val record = audioRecord ?: break
             // Blocking read until a whole frame is available
             var filled = 0
+            var broken = false
+            val stallDeadline = SystemClock.elapsedRealtime() + STALL_TIMEOUT_MS
             while (filled < FRAME_SAMPLES && isRecording) {
                 val read = record.read(frame, filled, FRAME_SAMPLES - filled)
-                if (read > 0) filled += read else { delay(20); if (read < 0) break }
+                when {
+                    read > 0 -> filled += read
+                    read < 0 || SystemClock.elapsedRealtime() > stallDeadline -> { broken = true; break }
+                    else -> delay(20)
+                }
             }
-            if (filled < FRAME_SAMPLES) continue
+            if (!isRecording) break
+            if (broken) {
+                Log.w(TAG, "Microphone stream broke, reopening")
+                if (reopenRecord() == null) {
+                    if (isRecording) {
+                        isRecording = false
+                        onMicrophoneLost()
+                    }
+                    return
+                }
+                gapMs = (System.currentTimeMillis() - streamStart - framesProcessed * FRAME_MS).coerceAtLeast(gapMs)
+                continue
+            }
 
-            val timestamp = streamStart + framesProcessed * FRAME_MS
+            val timestamp = streamStart + gapMs + framesProcessed * FRAME_MS
             framesProcessed++
             val features = extractor.extract(frame, 0, FRAME_SAMPLES)
             ring?.let { buffer ->
@@ -174,7 +241,8 @@ class AudioAnalyzer(
             detector.onFrame(timestamp, FRAME_MS, features).forEach { burst ->
                 onSnoreDetected(burst, detector.thresholdDb)
                 if (ring != null) {
-                    fun sampleAt(timeMs: Long) = (timeMs - streamStart) * SAMPLE_RATE / 1000
+                    val audioStart = streamStart + gapMs
+                    fun sampleAt(timeMs: Long) = (timeMs - audioStart) * SAMPLE_RATE / 1000
                     clipRequests += ClipRequest(
                         burst = burst,
                         fromSample = sampleAt(burst.startMs - CLIP_PRE_ROLL_MS).coerceAtLeast(0),

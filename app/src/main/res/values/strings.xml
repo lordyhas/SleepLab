@@ -250,4 +250,11 @@
     <string name="rating_vs_snoring_title">Snoring vs how you felt</string>
     <string name="rating_vs_snoring_hint">Rate at least %1$d nights to see this (%2$d so far).</string>
     <string name="avg_snore_under_one">&lt; 1 min / night</string>
+    <!-- Reliability -->
+    <string name="not_now">Not now</string>
+    <string name="mic_failed_title">Recording stopped: microphone unavailable</string>
+    <string name="mic_failed_message">SleepLab could not get sound from the microphone, so the night was ended instead of recording silence. What was captured before that is saved. Close any app that may be using the microphone, then start again.</string>
+    <string name="mic_failed_notif_text">The microphone stopped responding, so tracking ended early. What was recorded until then is saved.</string>
+    <string name="battery_opt_title">Keep recording all night</string>
+    <string name="battery_opt_message">Battery optimisation can stop SleepLab in the middle of the night. In the system settings, open Battery and choose “Unrestricted” (or “Don’t optimise”) for SleepLab.</string>
 </resources>

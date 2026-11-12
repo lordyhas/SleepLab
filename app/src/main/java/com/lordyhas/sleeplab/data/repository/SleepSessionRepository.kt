@@ -20,6 +20,9 @@ class SleepSessionRepository(private val sleepSessionDao: SleepSessionDao) {
     fun getSessionsBetween(fromTime: Long, toTime: Long): Flow<List<SleepSessionEntity>> =
         sleepSessionDao.getSessionsBetween(fromTime, toTime)
 
+    /** Nights with no end time yet: the one being recorded, or ones cut short. */
+    suspend fun getOpenSessions(): List<SleepSessionEntity> = sleepSessionDao.getOpenSessions()
+
     suspend fun startNewSession(treatmentId: Int?, thresholdDb: Float): Long {
         val session = SleepSessionEntity(
             startTime = System.currentTimeMillis(),

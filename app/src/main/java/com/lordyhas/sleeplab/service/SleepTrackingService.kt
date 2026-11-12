@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SleepTrackingService : Service() {
 
@@ -71,6 +72,7 @@ class SleepTrackingService : Service() {
     companion object {
         const val CHANNEL_ID = "snore_tracking_channel"
         const val NOTIFICATION_ID = 1001
+        private const val MIC_FAILED_NOTIFICATION_ID = 1002
 
         const val ACTION_START = "com.lordyhas.sleeplab.action.START_TRACKING"
         const val ACTION_STOP = "com.lordyhas.sleeplab.action.STOP_TRACKING"
@@ -166,6 +168,8 @@ class SleepTrackingService : Service() {
         )
         sampleAccumulator.drainAverage()
 
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(MIC_FAILED_NOTIFICATION_ID)
+
         // Acquire WakeLock
         acquireWakeLock()
 
@@ -222,12 +226,13 @@ class SleepTrackingService : Service() {
                     lastSnoreAt = 0L,
                     clipsEnabled = captureClips,
                     detectionStartsAt = startTimeMillis + startDelayMs,
-                    stopAt = stopAtMillis
+                    stopAt = stopAtMillis,
+                    microphoneFailed = false
                 )
             }
 
             // Start Audio Analyzer
-            audioAnalyzer = AudioAnalyzer(
+            val analyzer = AudioAnalyzer(
                 scope = serviceScope,
                 thresholdDb = thresholdDb,
                 calibrator = if (autoCalibrate) NoiseFloorCalibrator() else null,
@@ -250,8 +255,17 @@ class SleepTrackingService : Service() {
                 },
                 onCalibrated = { result ->
                     handleCalibrated(sessionId, result)
+                },
+                onMicrophoneLost = {
+                    serviceScope.launch { failTracking() }
                 }
-            ).also { it.start() }
+            )
+            audioAnalyzer = analyzer
+            if (!analyzer.start()) {
+                // No microphone, no night: say so instead of recording silence until morning.
+                withContext(Dispatchers.Main) { failTracking() }
+                return@launch
+            }
 
             startNoiseSampling(sessionId)
             SleepTrackingTileService.refresh(this@SleepTrackingService)
@@ -371,7 +385,45 @@ class SleepTrackingService : Service() {
         }
     }
 
-    private fun stopTracking() {
+    /**
+     * The microphone could not be opened, or died mid-night and would not come back. Ends the
+     * night keeping what was recorded, and tells the user (in the app and with a notification
+     * that stays until morning) rather than pretending to listen.
+     */
+    private fun failTracking() {
+        if (timerJob == null && audioAnalyzer == null) return // already stopped
+        _trackingState.update { it.copy(microphoneFailed = true) }
+        stopTracking(microphoneFailed = true)
+    }
+
+    private fun showMicrophoneFailedNotification() {
+        val openApp = PendingIntent.getActivity(
+            this,
+            2,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.mic_failed_title))
+            .setContentText(getString(R.string.mic_failed_notif_text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(getString(R.string.mic_failed_notif_text)))
+            .setSmallIcon(R.drawable.ic_night_recording)
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW) // found in the morning, never wakes the sleeper
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .build()
+        try {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(MIC_FAILED_NOTIFICATION_ID, notification)
+        } catch (e: SecurityException) {
+            // Notifications not allowed: the Tracking screen still shows the failure.
+        }
+    }
+
+    private fun stopTracking(microphoneFailed: Boolean = false) {
         // Auto-stop and a manual stop can race; the first one wins.
         if (timerJob == null && audioAnalyzer == null) return
         val sessionId = currentSessionId
@@ -388,17 +440,24 @@ class SleepTrackingService : Service() {
             if (sessionId != null) {
                 val app = SleepLabApp.instance
                 val endTime = System.currentTimeMillis()
-                val episodes = synchronized(scoreEpisodes) { scoreEpisodes.toList() }
-                val score = SnoreScore.compute(episodes, (endTime - startTimeMillis) / 1000)
+                if (microphoneFailed && endTime - startTimeMillis < NightRecovery.MIN_KEEP_MS) {
+                    // The microphone never really worked: an empty night would only skew the stats.
+                    app.clipRepository.deleteSessionClips(sessionId)
+                    app.sleepSessionRepository.deleteNight(sessionId)
+                } else {
+                    val episodes = synchronized(scoreEpisodes) { scoreEpisodes.toList() }
+                    val score = SnoreScore.compute(episodes, (endTime - startTimeMillis) / 1000)
 
-                app.sleepSessionRepository.completeSession(
-                    sessionId = sessionId,
-                    endTime = endTime,
-                    totalSnoreDurationSeconds = totalSnoreSeconds,
-                    snoreIntensityScore = score,
-                    scoreVersion = SnoreScore.VERSION
-                )
+                    app.sleepSessionRepository.completeSession(
+                        sessionId = sessionId,
+                        endTime = endTime,
+                        totalSnoreDurationSeconds = totalSnoreSeconds,
+                        snoreIntensityScore = score,
+                        scoreVersion = SnoreScore.VERSION
+                    )
+                }
             }
+            if (microphoneFailed) showMicrophoneFailedNotification()
 
             _trackingState.update {
                 it.copy(
@@ -535,7 +594,9 @@ data class TrackingState(
     /** When calibration/detection begin (after the start delay). */
     val detectionStartsAt: Long = 0L,
     /** When this night will stop automatically (auto-stop time or the 12 h cap). */
-    val stopAt: Long = 0L
+    val stopAt: Long = 0L,
+    /** The last night ended because the microphone was unavailable; cleared when a night starts. */
+    val microphoneFailed: Boolean = false
 ) {
     companion object {
         /** Live waveform length: 60 frames of 100 ms. */
