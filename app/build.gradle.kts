@@ -6,21 +6,21 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Release signing: values come from an untracked `key.properties` at the project root (local
-// builds) or from environment variables (CI). Without them the release build is left unsigned.
-val keystoreProperties = Properties().apply {
-    val file = rootProject.file("key.properties")
+// Release signing: CI provides environment variables; locally the values come from an untracked
+// `keystore.properties` at the project root. Without either, the release build is left unsigned.
+val keystoreProps = Properties().apply {
+    val file = rootProject.file("keystore.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-fun signingValue(property: String, envVariable: String): String? =
-    (keystoreProperties.getProperty(property) ?: providers.environmentVariable(envVariable).orNull)
+fun signingValue(envName: String, propName: String): String? =
+    (providers.environmentVariable(envName).orNull ?: keystoreProps.getProperty(propName))
         ?.takeIf { it.isNotBlank() }
 
-val releaseStoreFile = signingValue("storeFile", "SLEEPLAB_KEYSTORE_FILE")
-val releaseStorePassword = signingValue("storePassword", "SLEEPLAB_KEYSTORE_PASSWORD")
-val releaseKeyAlias = signingValue("keyAlias", "SLEEPLAB_KEY_ALIAS")
-val releaseKeyPassword = signingValue("keyPassword", "SLEEPLAB_KEY_PASSWORD")
+val releaseStoreFile = signingValue("KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("KEY_PASSWORD", "keyPassword")
 val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
     .all { it != null }
 

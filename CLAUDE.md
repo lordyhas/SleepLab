@@ -78,7 +78,7 @@ Single-module Android app (`app/`) using MVVM + Clean Architecture. Three layers
 
 - `.github/workflows/ci.yml`: unit tests + lint on every PR and on `main`.
 - `.github/workflows/release.yml`: only on pushes to `production` — tests, lint, signed APK + AAB, GitHub Release tagged `v<versionName>` (fails if the tag exists, so bump `versionName`/`versionCode` first).
-- Release signing in `app/build.gradle.kts` reads an untracked root `key.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) or the `SLEEPLAB_KEYSTORE_FILE` / `SLEEPLAB_KEYSTORE_PASSWORD` / `SLEEPLAB_KEY_ALIAS` / `SLEEPLAB_KEY_PASSWORD` environment variables; without them release builds are unsigned. Never commit a keystore or its passwords.
+- Release signing in `app/build.gradle.kts` reads an untracked root `keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) or the `KEYSTORE_PATH` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` environment variables; without them release builds are unsigned. Never commit a keystore or its passwords.
 
 ## Roadmap
 
