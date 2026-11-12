@@ -64,7 +64,7 @@ Single-module Android app (`app/`) using MVVM + Clean Architecture. Three layers
 - **Insets**: the outer `Scaffold` in `AppNavHost` has zero content insets and only reserves the bottom bar. Tab screens add the status-bar padding themselves (`WindowInsets.statusBars`); screens with their own `TopAppBar` (Session detail) get it from that.
 
 ### Dependency injection
-The README mentions Hilt, but **Hilt is not used**. `SleepLabApp` is a manual DI container — repositories are exposed as lazy properties and ViewModels pull them via `SleepLabApp.instance.*Repository`.
+**Hilt is not used**. `SleepLabApp` is a manual DI container — repositories are exposed as lazy properties and ViewModels pull them via `SleepLabApp.instance.*Repository`.
 
 ## Key Technical Details
 

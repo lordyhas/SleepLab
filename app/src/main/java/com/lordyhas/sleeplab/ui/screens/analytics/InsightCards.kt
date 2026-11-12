@@ -50,7 +50,7 @@ import com.lordyhas.sleeplab.ui.theme.SnoreMedium
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
+import androidx.compose.ui.platform.LocalConfiguration
 
 /** Severity of a night's total snoring, same bands as the history list. */
 internal fun minutesColor(minutes: Float): Color = when {
@@ -70,7 +70,7 @@ fun CalendarCard(
     onNightClick: (sessionId: Int) -> Unit
 ) {
     var monthOffset by rememberSaveable { mutableIntStateOf(0) }
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val month = remember(monthOffset) {
         Calendar.getInstance(locale).apply {
             set(Calendar.DAY_OF_MONTH, 1)

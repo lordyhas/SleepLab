@@ -17,9 +17,10 @@ SleepLab is a native Android application (AI Healthcare & Wellness to be) design
 *   **Architecture:** MVVM (Model-View-ViewModel) with Clean Architecture principles
 *   **Database:** Room Database (Offline first)
 *   **Concurrency:** Kotlin Coroutines & Flow
-*   **Dependency Injection:** Dagger Hilt
+*   **Dependency Injection:** Manual — `SleepLabApp` is a small container exposing the repositories (no Hilt/Dagger)
+*   **Annotation Processing:** KSP
 *   **Audio Processing:** `AudioRecord`, Foreground Services
-*   **Charts/Graphs:** Compose-compatible charting libraries
+*   **Charts/Graphs:** Drawn with Compose `Canvas` (no charting library)
 
 ## Architecture Overview
 
@@ -34,6 +35,7 @@ The app follows a modern Android architecture:
 - `FOREGROUND_SERVICE` & `FOREGROUND_SERVICE_MICROPHONE`: To continue tracking sleep while the app is in the background or screen is locked.
 - `POST_NOTIFICATIONS`: To display the persistent foreground service notification.
 - `WAKE_LOCK`: To prevent the device from sleeping too deeply while actively processing audio.
+- `RECEIVE_BOOT_COMPLETED`: To re-schedule the optional bedtime reminder after a reboot.
 
 ## Getting Started
 
@@ -41,6 +43,14 @@ The app follows a modern Android architecture:
 2. Open the project in **Android Studio**.
 3. Build and run the app on a **physical device** (Emulators may not have proper microphone input for testing the core feature).
 4. Grant the necessary permissions on the first run.
+
+```bash
+./gradlew assembleDebug   # build
+./gradlew test            # unit tests
+./gradlew lint            # lint
+```
+
+Unit tests and lint also run on every pull request (`.github/workflows/ci.yml`). Planned work is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## License
 This project is open-source. Please check the `LICENSE` file for more details.
