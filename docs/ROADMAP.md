@@ -100,7 +100,7 @@ lock screen, no unlock · "Open SleepLab" asks for the unlock · stop from the n
 - [x] **Release signing + CD** — signing config read from an untracked `keystore.properties` or CI
       secrets; `.github/workflows/release.yml` builds and publishes a GitHub Release when a commit
       lands on `production`.
-- [ ] **Release keystore** — create it, add the four repository secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), create the
+- [x] **Release keystore** — create it, add the four repository secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), create the
       `production` branch.
 - [ ] **R8** — code + resource shrinking on, ProGuard rules checked on a real night.
 - [ ] **Version** — settle `versionName` / `versionCode`, tag the release.
