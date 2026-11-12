@@ -74,6 +74,12 @@ Single-module Android app (`app/`) using MVVM + Clean Architecture. Three layers
 - `NoiseSample` rows are recorded every 10 seconds (the mean level over those 10 s) for the night timeline chart
 - All user-facing text lives in `res/values/strings.xml` (EN) and `res/values-fr/strings.xml` (FR); add every new string to both. Escape apostrophes as `\'` or use the typographic `’` — a bare `'` fails `mergeDebugResources`.
 
+## CI / release
+
+- `.github/workflows/ci.yml`: unit tests + lint on every PR and on `main`.
+- `.github/workflows/release.yml`: only on pushes to `production` — tests, lint, signed APK + AAB, GitHub Release tagged `v<versionName>` (fails if the tag exists, so bump `versionName`/`versionCode` first).
+- Release signing in `app/build.gradle.kts` reads an untracked root `key.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) or the `SLEEPLAB_KEYSTORE_FILE` / `SLEEPLAB_KEYSTORE_PASSWORD` / `SLEEPLAB_KEY_ALIAS` / `SLEEPLAB_KEY_PASSWORD` environment variables; without them release builds are unsigned. Never commit a keystore or its passwords.
+
 ## Roadmap
 
 Planned work is in `docs/ROADMAP.md`, one phase per branch/PR, each tested on a physical device before the next starts.
