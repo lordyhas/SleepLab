@@ -13,6 +13,7 @@ import com.lordyhas.sleeplab.data.repository.SleepSessionRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
 import com.lordyhas.sleeplab.service.SleepTrackingService
 import com.lordyhas.sleeplab.service.TrackingState
+import com.lordyhas.sleeplab.ui.util.forStats
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -54,17 +55,19 @@ class HomeViewModel(
         val latestTreatment = latest?.treatmentId?.let { tid ->
             treatmentRepository.getTreatmentByIdDirect(tid)
         }
-        val avgSnoreSec = if (completedSessions.isNotEmpty()) {
-            completedSessions.map { it.totalSnoreDurationSeconds }.average().toInt()
+        // Test runs and false starts would drag the averages and "best night" to zero.
+        val statsSessions = completedSessions.forStats()
+        val avgSnoreSec = if (statsSessions.isNotEmpty()) {
+            statsSessions.map { it.totalSnoreDurationSeconds }.average().toInt()
         } else 0
 
         HomeUiState(
             isLoaded = true,
             latestSession = latest,
             latestSessionTreatment = latestTreatment,
-            totalSessionsCount = completedSessions.size,
+            totalSessionsCount = statsSessions.size,
             averageSnoreDurationMinutes = avgSnoreSec / 60,
-            bestNightSnoreMinutes = completedSessions.minOfOrNull { it.totalSnoreDurationSeconds }?.div(60),
+            bestNightSnoreMinutes = statsSessions.minOfOrNull { it.totalSnoreDurationSeconds }?.div(60),
             activeTreatments = activeTreatments,
             factors = factors,
             tonightFactorIds = tonightFactorIds,

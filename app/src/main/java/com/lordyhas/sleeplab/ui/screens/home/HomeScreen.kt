@@ -84,6 +84,7 @@ import com.lordyhas.sleeplab.ui.theme.SnoreMedium
 import com.lordyhas.sleeplab.ui.util.formatClock
 import com.lordyhas.sleeplab.ui.util.scoreDisplay
 import com.lordyhas.sleeplab.ui.util.formatDuration
+import com.lordyhas.sleeplab.ui.util.isLastNight
 import com.lordyhas.sleeplab.ui.util.sessionDurationSeconds
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -132,8 +133,7 @@ fun HomeScreen(
         }
 
         val unratedNight = uiState.latestSession?.takeIf {
-            it.morningRating == null &&
-                System.currentTimeMillis() - it.endTime < MORNING_PROMPT_WINDOW_MS
+            it.morningRating == null && isLastNight(it.endTime)
         }
         if (!trackingState.isTracking && unratedNight != null) {
             item(key = "morningPrompt") {
@@ -213,9 +213,6 @@ fun HomeScreen(
         }
     }
 }
-
-/** How long after a night ends the "How did you sleep?" card is offered. */
-private const val MORNING_PROMPT_WINDOW_MS = 18 * 60 * 60 * 1000L
 
 @Composable
 private fun MorningPromptCard(onRate: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -449,7 +446,11 @@ private fun LastNightCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                stringResource(R.string.last_night),
+                // An older night is "Latest night": calling it "last night" days later misleads.
+                stringResource(
+                    if (latestSession == null || isLastNight(latestSession.endTime)) R.string.last_night
+                    else R.string.latest_night
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f)
             )

@@ -13,6 +13,9 @@
     <string name="manage">Manage</string>
     <string name="no_treatment">No treatment</string>
     <string name="last_night">Last Night</string>
+    <string name="latest_night">Latest Night</string>
+    <string name="short_night_hint">Short night · not in stats</string>
+    <string name="sound_level">Sound level</string>
     <string name="no_night_recorded">No night recorded yet. Start your first tracking to see your results!</string>
     <string name="sleep_title">Sleep</string>
     <string name="snoring_title">Snoring</string>
@@ -25,7 +28,7 @@
     <string name="no_specific_treatment">No specific treatment</string>
     <string name="sleep_tracking">Sleep Tracking</string>
     <string name="recording_in_progress">Recording in progress</string>
-    <string name="db_spl">dB SPL</string>
+    <string name="db_spl">dB</string>
     <string name="events">events</string>
     <string name="snore_time">Snore Time</string>
     <string name="cumulative_duration">cumulative duration</string>

@@ -77,6 +77,7 @@ import com.lordyhas.sleeplab.ui.theme.SnoreHigh
 import com.lordyhas.sleeplab.ui.theme.SnoreLow
 import com.lordyhas.sleeplab.ui.theme.SnoreMedium
 import com.lordyhas.sleeplab.ui.util.formatDuration
+import com.lordyhas.sleeplab.ui.util.isShortNight
 import com.lordyhas.sleeplab.ui.util.sessionDurationSeconds
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -85,6 +86,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 
 private const val CHART_NIGHTS = 14
+private const val NIGHT_LABEL_OFFSET_MS = 12L * 60 * 60 * 1000
 
 @Composable
 fun AnalyticsScreen(
@@ -104,7 +106,7 @@ fun AnalyticsScreen(
 
         if (!uiState.isLoaded) return@LazyColumn
 
-        if (uiState.sessionsWithTreatments.isEmpty()) {
+        if (uiState.historySessions.isEmpty()) {
             item {
                 EmptyState(
                     icon = Icons.Default.BarChart,
@@ -116,7 +118,8 @@ fun AnalyticsScreen(
             return@LazyColumn
         }
 
-        item {
+        // Only short test nights so far: nothing to chart yet, but they can still be opened.
+        if (uiState.sessionsWithTreatments.isNotEmpty()) item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 MetricTile(
                     modifier = Modifier.weight(1f),
@@ -152,13 +155,14 @@ fun AnalyticsScreen(
             }
         }
 
-        item {
+        if (uiState.sessionsWithTreatments.isNotEmpty()) item {
             val dayFormat = remember { SimpleDateFormat("d/M", Locale.getDefault()) }
             val monthFormat = remember { SimpleDateFormat("LLL", Locale.getDefault()) }
             val bars = when (trendPeriod) {
                 TrendPeriod.NIGHTS -> uiState.sessionsWithTreatments.takeLast(CHART_NIGHTS).map {
                     ChartBar(
-                        label = dayFormat.format(Date(it.session.startTime)),
+                        // The evening the night belongs to: a 00:30 start is the previous day's night.
+                        label = dayFormat.format(Date(it.session.startTime - NIGHT_LABEL_OFFSET_MS)),
                         minutes = it.session.totalSnoreDurationSeconds / 60f,
                         color = if (it.session.treatmentId != null) SleepTealAccent else SleepIndigoPrimary
                     )
@@ -178,26 +182,28 @@ fun AnalyticsScreen(
             )
         }
 
-        item {
-            CalendarCard(
-                minutesByDay = uiState.minutesByDay,
-                sessionIdByDay = uiState.sessionIdByDay,
-                onNightClick = onNavigateToSessionDetail
-            )
-        }
+        if (uiState.sessionsWithTreatments.isNotEmpty()) {
+            item {
+                CalendarCard(
+                    minutesByDay = uiState.minutesByDay,
+                    sessionIdByDay = uiState.sessionIdByDay,
+                    onNightClick = onNavigateToSessionDetail
+                )
+            }
 
-        item { FactorImpactCard(impacts = uiState.factorImpacts) }
+            item { FactorImpactCard(impacts = uiState.factorImpacts) }
 
-        item { RatingCard(breakdown = uiState.ratingBreakdown, ratedNights = uiState.ratedNights) }
+            item { RatingCard(breakdown = uiState.ratingBreakdown, ratedNights = uiState.ratedNights) }
 
-        item {
-            Spacer(Modifier.height(4.dp))
-            SectionHeader(stringResource(R.string.detail_by_treatment))
-        }
+            item {
+                Spacer(Modifier.height(4.dp))
+                SectionHeader(stringResource(R.string.detail_by_treatment))
+            }
 
-        val maxImpactMinutes = uiState.treatmentImpacts.maxOfOrNull { it.averageSnoreMinutes } ?: 0f
-        items(uiState.treatmentImpacts, key = { it.treatmentId ?: -1 }) { impact ->
-            TreatmentPerformanceCard(impact = impact, maxMinutes = maxImpactMinutes)
+            val maxImpactMinutes = uiState.treatmentImpacts.maxOfOrNull { it.averageSnoreMinutes } ?: 0f
+            items(uiState.treatmentImpacts, key = { it.treatmentId ?: -1 }) { impact ->
+                TreatmentPerformanceCard(impact = impact, maxMinutes = maxImpactMinutes)
+            }
         }
 
         item {
@@ -205,7 +211,7 @@ fun AnalyticsScreen(
             SectionHeader(stringResource(R.string.nights_history))
         }
 
-        items(uiState.sessionsWithTreatments.reversed(), key = { it.session.id }) { item ->
+        items(uiState.historySessions, key = { it.session.id }) { item ->
             SessionHistoryRow(
                 item = item,
                 onClick = { onNavigateToSessionDetail(item.session.id) }
@@ -427,7 +433,8 @@ private fun SnoreTrendCard(
                     cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
                 )
 
-                if ((count - 1 - index) % labelEvery == 0) {
+                val repeatsPrevious = index > 0 && bars[index - 1].label == bar.label
+                if ((count - 1 - index) % labelEvery == 0 && !repeatsPrevious) {
                     val label = textMeasurer.measure(bar.label, labelStyle)
                     drawText(label, topLeft = Offset(centerX - label.size.width / 2f, chartHeight + 4.dp.toPx()))
                 }
@@ -491,6 +498,7 @@ private fun SessionHistoryRow(
     val dateFormat = remember { SimpleDateFormat("EEE d MMM · HH:mm", Locale.getDefault()) }
     val snoreMin = item.session.totalSnoreDurationSeconds / 60
     val severity = when {
+        item.session.isShortNight -> MaterialTheme.colorScheme.outline
         snoreMin > 30 -> SnoreHigh
         snoreMin > 10 -> SnoreMedium
         else -> SnoreLow
@@ -516,9 +524,11 @@ private fun SessionHistoryRow(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    item.treatmentName ?: stringResource(R.string.no_treatment),
+                    if (item.session.isShortNight) stringResource(R.string.short_night_hint)
+                    else item.treatmentName ?: stringResource(R.string.no_treatment),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (item.treatmentName != null) SleepTealAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (item.treatmentName != null && !item.session.isShortNight) SleepTealAccent
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }

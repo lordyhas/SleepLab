@@ -9,7 +9,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Badge
@@ -52,6 +57,7 @@ import com.lordyhas.sleeplab.ui.screens.sessiondetail.SessionDetailScreen
 import com.lordyhas.sleeplab.ui.screens.tracking.TrackingScreen
 import com.lordyhas.sleeplab.ui.screens.treatments.TreatmentsScreen
 import com.lordyhas.sleeplab.ui.theme.CardBorder
+import com.lordyhas.sleeplab.ui.theme.NightSkyTop
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
 
 private const val TRANSITION_MILLIS = 260
@@ -197,6 +203,13 @@ fun AppNavHost(
                 }
             }
         }
+        // Tab content scrolls under the status bar; this keeps the clock and icons readable.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .windowInsetsTopHeight(WindowInsets.statusBars)
+                .background(NightSkyTop.copy(alpha = 0.94f))
+        )
     }
 }
 

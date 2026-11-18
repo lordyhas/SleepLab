@@ -63,6 +63,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -89,6 +90,7 @@ import com.lordyhas.sleeplab.ui.components.GlassCard
 import com.lordyhas.sleeplab.ui.components.MetricTile
 import com.lordyhas.sleeplab.ui.components.Pill
 import com.lordyhas.sleeplab.ui.components.SectionHeader
+import com.lordyhas.sleeplab.ui.theme.NightSkyTop
 import com.lordyhas.sleeplab.ui.theme.SleepIndigoLight
 import com.lordyhas.sleeplab.ui.theme.SleepTealAccent
 import com.lordyhas.sleeplab.ui.theme.SnoreHigh
@@ -102,8 +104,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val CHART_MIN_DB = 20f
-private const val CHART_MAX_DB = 100f
+/** dB levels are relative and a quiet room reads ~5–10, so the axis follows the night's own range. */
+internal fun chartDbRange(values: List<Float>): Pair<Float, Float> {
+    if (values.isEmpty()) return 0f to 40f
+    val low = (kotlin.math.floor((values.min() - 2f) / 10f) * 10f).coerceAtLeast(0f)
+    var high = kotlin.math.ceil((values.max() + 2f) / 10f) * 10f
+    if (high - low < 20f) high = low + 20f
+    return low to high
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,12 +134,15 @@ fun SessionDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     val clipPlayer = rememberClipPlayer()
     var showNoteDialog by remember { mutableStateOf(false) }
+    // The bar turns solid once content scrolls under it, so rows never mix with the title.
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) onNavigateBack()
     }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
@@ -148,7 +159,11 @@ fun SessionDetailScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = NightSkyTop
+                ),
+                scrollBehavior = scrollBehavior
             )
         }
     ) { padding ->
@@ -319,7 +334,7 @@ fun SessionDetailScreen(
                             Text(stringResource(R.string.noise_timeline), style = MaterialTheme.typography.titleSmall)
                             Spacer(Modifier.height(4.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                LegendItem(SleepTealAccent, stringResource(R.string.db_spl))
+                                LegendItem(SleepTealAccent, stringResource(R.string.sound_level))
                                 LegendItem(SnoreHigh.copy(alpha = 0.6f), stringResource(R.string.snoring_title))
                             }
                             Spacer(Modifier.height(14.dp))
@@ -564,6 +579,13 @@ private fun NightTimelineChart(
     val finalThreshold = thresholdSteps.lastOrNull()?.second ?: thresholdDb
     val thresholdLabel = stringResource(R.string.threshold_line, finalThreshold.toInt())
     val gridColor = Color.White.copy(alpha = 0.07f)
+    val (chartMinDb, chartMaxDb) = remember(noiseSamples, snoreEvents, thresholdDb) {
+        chartDbRange(
+            noiseSamples.map { it.decibelLevel } + snoreEvents.map { it.amplitude } +
+                thresholdSteps.map { it.second } + thresholdDb
+        )
+    }
+    val gridStep = if (chartMaxDb - chartMinDb > 40f) 20f else 10f
 
     Canvas(modifier = modifier) {
         val axisWidth = 26.dp.toPx()
@@ -574,14 +596,14 @@ private fun NightTimelineChart(
         val durationMs = (sessionEndTime - sessionStartTime).toFloat()
 
         fun xFor(timestamp: Long) = left + ((timestamp - sessionStartTime) / durationMs).coerceIn(0f, 1f) * width
-        fun yFor(db: Float) = height - ((db - CHART_MIN_DB) / (CHART_MAX_DB - CHART_MIN_DB)).coerceIn(0f, 1f) * height
+        fun yFor(db: Float) = height - ((db - chartMinDb) / (chartMaxDb - chartMinDb)).coerceIn(0f, 1f) * height
 
-        // Y gridlines
-        listOf(40f, 60f, 80f).forEach { db ->
+        // Y gridlines (the bottom one is the axis itself)
+        generateSequence(chartMinDb + gridStep) { it + gridStep }.takeWhile { it <= chartMaxDb }.forEach { db ->
             val y = yFor(db)
             drawLine(gridColor, Offset(left, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
             val label = textMeasurer.measure("${db.toInt()}", labelStyle)
-            drawText(label, topLeft = Offset(0f, y - label.size.height / 2f))
+            drawText(label, topLeft = Offset(0f, (y - label.size.height / 2f).coerceAtLeast(0f)))
         }
 
         // Snore events as translucent bands
