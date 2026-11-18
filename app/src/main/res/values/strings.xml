@@ -1,14 +1,7 @@
 <resources>
     <string name="app_name">SleepLab</string>
-    <string name="screen_home">Home</string>
-    <string name="screen_tracking">Tracking</string>
-    <string name="screen_analytics">Analytics</string>
     <string name="screen_treatments">Treatments</string>
-    <string name="active_sleep_tracking">Active Sleep Tracking</string>
-    <string name="view_live_stop">View Live &amp; Stop</string>
     <string name="ready_for_good_night">Ready for a good night?</string>
-    <string name="record_evaluate_desc">Record your snoring and evaluate your treatments</string>
-    <string name="start_sleep">Start Sleep</string>
     <string name="treatment_applied_tonight">Treatment applied tonight:</string>
     <string name="manage">Manage</string>
     <string name="no_treatment">No treatment</string>
@@ -35,10 +28,8 @@
     <string name="sound_peak">Sound Peak</string>
     <string name="db_max">dB max</string>
     <string name="stop_and_save">Stop and Save</string>
-    <string name="no_recording">No recording in progress</string>
     <string name="place_phone_instruction">Place your phone on your nightstand and start tracking before sleep.</string>
     <string name="start_night_tracking">Start Night Tracking</string>
-    <string name="treatments_and_settings">Treatments &amp; Settings</string>
     <string name="add_treatment_desc">Add a treatment</string>
     <string name="your_medical_treatments">Your Medical Treatments</string>
     <string name="mic_sensitivity">Microphone Sensitivity</string>
@@ -63,7 +54,6 @@
     <string name="common_suggestions">Common suggestions:</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
-    <string name="analytics_and_efficiency">Analytics &amp; Efficiency</string>
     <string name="detail_by_treatment">Detail by Treatment</string>
     <string name="nights_history">Nights History</string>
     <string name="medical_impact">Medical Impact of Treatments</string>
@@ -88,8 +78,6 @@
     <string name="avg_db">Avg dB</string>
     <string name="max_db">Max dB</string>
     <string name="min_db">Min dB</string>
-    <string name="snore_episodes">Episodes</string>
-    <string name="snore_events_list">Snore Events</string>
     <string name="no_noise_data">No noise data recorded for this night.</string>
     <string name="session_not_found">Session not found</string>
 
@@ -105,17 +93,14 @@
     <string name="night_moderate">Moderate snoring</string>
     <string name="night_loud">Loud snoring</string>
     <string name="see_details">Details</string>
-    <string name="overview">Overview</string>
     <string name="nights_tracked">Nights tracked</string>
     <string name="avg_per_night">Avg / night</string>
-    <string name="best_night">Best night</string>
     <string name="minutes_value">%1$d min</string>
     <string name="hold_to_stop">Hold to stop &amp; save</string>
     <string name="hold_hint">Press and hold the button to end the night</string>
     <string name="listening">Listening…</string>
     <string name="level_quiet">Quiet</string>
     <string name="level_above_threshold">Above threshold</string>
-    <string name="tonight_with">Tonight: %1$s</string>
     <string name="tips_title">Before you sleep</string>
     <string name="tip_placement">Place the phone 30–60 cm from your head, microphone facing you.</string>
     <string name="tip_charger">Plug in the charger — recording runs all night.</string>
@@ -241,7 +226,7 @@
     <string name="calendar_medium">10–30 min</string>
     <string name="calendar_high">&gt; 30 min</string>
     <string name="factors_title">What goes with more snoring</string>
-    <string name="factors_empty">Tag your nights with factors (alcohol, a cold…) on Home or in a night’s detail to see which ones go with more snoring.</string>
+    <string name="factors_empty">Tag your nights with factors (alcohol, a cold…) on Tonight or in a night’s report to see which ones go with more snoring.</string>
     <string name="factor_compare">%1$d vs %2$d min / night without it</string>
     <plurals name="factor_needs_nights">
         <item quantity="one">%1$d more night needed to compare</item>
@@ -285,4 +270,9 @@
         <item quantity="one">%d snore</item>
         <item quantity="other">%d snores</item>
     </plurals>
+    <string name="screen_tonight">Tonight</string>
+    <string name="screen_nights">Nights</string>
+    <string name="screen_trends">Trends</string>
+    <string name="settings_title">Settings</string>
+    <string name="no_nights_title">No nights yet</string>
 </resources>

@@ -127,20 +127,25 @@ private const val NIGHT_SCREEN_IDLE_MS = 30_000L
 private const val GAUGE_MIN_DB = 20f
 private const val GAUGE_MAX_DB = 90f
 
+/**
+ * The Tonight tab. While a night is recorded it shows the live view; otherwise [idleContent]
+ * (set up and start tonight, last night's report), given the start action and whether the
+ * microphone failed last time.
+ */
 @Composable
 fun TrackingScreen(
     viewModel: TrackingViewModel = viewModel(),
-    onNavigateToTreatments: () -> Unit = {},
     /** Start a night as soon as possible (from a reminder or the Quick Settings tile). */
     startRequested: Boolean = false,
-    onStartRequestHandled: () -> Unit = {}
+    onStartRequestHandled: () -> Unit = {},
+    idleContent: @Composable (onStart: () -> Unit, microphoneFailed: Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val trackingState by viewModel.trackingState.collectAsState()
     val allTreatments by viewModel.allTreatments.collectAsState()
-    val plannedTreatment by viewModel.plannedTreatment.collectAsState()
     val nightScreenEnabled by viewModel.nightScreenEnabled.collectAsState()
 
+    // Every start goes through here so the charger and permission checks always run.
     val startTracking = rememberStartNightGate { viewModel.startTracking(context) }
     LaunchedEffect(startRequested) {
         if (startRequested) {
@@ -155,16 +160,16 @@ fun TrackingScreen(
         animationSpec = tween(350),
         label = "trackingMode"
     ) { isTracking ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 20.dp, end = 20.dp, top = statusBarTop + 12.dp)
-        ) {
-            if (isTracking) {
-                val treatmentName = trackingState.treatmentId?.let { id ->
-                    allTreatments.firstOrNull { it.id == id }?.name
-                } ?: stringResource(R.string.no_specific_treatment)
+        if (isTracking) {
+            val treatmentName = trackingState.treatmentId?.let { id ->
+                allTreatments.firstOrNull { it.id == id }?.name
+            } ?: stringResource(R.string.no_specific_treatment)
 
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 20.dp, end = 20.dp, top = statusBarTop + 12.dp)
+            ) {
                 ActiveTrackingContent(
                     state = trackingState,
                     treatmentName = treatmentName,
@@ -172,14 +177,9 @@ fun TrackingScreen(
                     onOpenNightScreen = { NightScreenActivity.start(context) },
                     onStop = { viewModel.stopTracking(context) }
                 )
-            } else {
-                InactiveTrackingContent(
-                    microphoneFailed = trackingState.microphoneFailed,
-                    plannedTreatmentName = plannedTreatment?.name ?: stringResource(R.string.no_treatment),
-                    onTreatmentClick = onNavigateToTreatments,
-                    onStart = startTracking
-                )
             }
+        } else {
+            idleContent(startTracking, trackingState.microphoneFailed)
         }
     }
 }
@@ -549,132 +549,3 @@ private fun WaveformVisualizer(
     }
 }
 
-@Composable
-private fun InactiveTrackingContent(
-    microphoneFailed: Boolean,
-    plannedTreatmentName: String,
-    onTreatmentClick: () -> Unit,
-    onStart: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            ScreenHeader(title = stringResource(R.string.sleep_tracking))
-
-            if (microphoneFailed) {
-                Spacer(Modifier.height(16.dp))
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(icon = Icons.Default.MicOff, tint = SnoreHigh, size = 32.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Text(stringResource(R.string.mic_failed_title), style = MaterialTheme.typography.titleSmall)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        stringResource(R.string.mic_failed_message),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            BreathingHalo(color = MoonGlow) {
-                Box(
-                    modifier = Modifier
-                        .size(140.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(MoonGlow.copy(alpha = 0.22f), MoonGlow.copy(alpha = 0.04f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Bedtime,
-                        contentDescription = null,
-                        tint = MoonGlow,
-                        modifier = Modifier.size(64.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Text(
-                stringResource(R.string.no_recording),
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                stringResource(R.string.place_phone_instruction),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp)
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            BatteryOptimizationCard(modifier = Modifier.padding(bottom = 12.dp))
-
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.tips_title), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(12.dp))
-                TipRow(Icons.Default.PhoneAndroid, SleepIndigoLight, stringResource(R.string.tip_placement))
-                Spacer(Modifier.height(10.dp))
-                TipRow(Icons.Default.BatteryChargingFull, SleepTealAccent, stringResource(R.string.tip_charger))
-                Spacer(Modifier.height(10.dp))
-                TipRow(Icons.AutoMirrored.Filled.VolumeOff, SnoreMedium, stringResource(R.string.tip_quiet))
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
-        Pill(
-            text = stringResource(R.string.tonight_with, plannedTreatmentName),
-            color = SleepIndigoLight,
-            icon = Icons.Default.MedicalServices,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clip(CircleShape)
-                .clickable(onClick = onTreatmentClick)
-        )
-        Spacer(Modifier.height(12.dp))
-        Button(
-            onClick = onStart,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 20.dp)
-                .height(60.dp),
-            shape = MaterialTheme.shapes.large,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SleepTealAccent,
-                contentColor = Color(0xFF042F2E)
-            )
-        ) {
-            Icon(Icons.Default.PlayArrow, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.start_night_tracking), fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun TipRow(icon: ImageVector, tint: Color, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconBadge(icon = icon, tint = tint, size = 32.dp)
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}

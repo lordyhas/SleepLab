@@ -52,6 +52,8 @@ import androidx.navigation.navArgument
 import com.lordyhas.sleeplab.service.SleepTrackingService
 import com.lordyhas.sleeplab.ui.components.NightBackground
 import com.lordyhas.sleeplab.ui.screens.analytics.AnalyticsScreen
+import com.lordyhas.sleeplab.ui.screens.analytics.NightsScreen
+import com.lordyhas.sleeplab.ui.screens.treatments.SettingsScreen
 import com.lordyhas.sleeplab.ui.screens.home.HomeScreen
 import com.lordyhas.sleeplab.ui.screens.sessiondetail.SessionDetailScreen
 import com.lordyhas.sleeplab.ui.screens.tracking.TrackingScreen
@@ -70,10 +72,9 @@ fun AppNavHost(
     onLaunchActionHandled: () -> Unit = {}
 ) {
     val items = listOf(
-        Screen.Home,
-        Screen.Tracking,
-        Screen.Analytics,
-        Screen.Treatments
+        Screen.Tonight,
+        Screen.Nights,
+        Screen.Trends
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -90,13 +91,17 @@ fun AppNavHost(
         }
     }
 
-    // External requests always land on the Tracking tab; starting is done by TrackingScreen
+    fun openSessionDetail(sessionId: Int) = navController.navigate(Screen.SessionDetail.createRoute(sessionId))
+    fun openTreatments() = navController.navigate(Screen.Treatments.route) { launchSingleTop = true }
+    fun openSettings() = navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+
+    // External requests always land on the Tonight tab; starting is done by TrackingScreen
     // so the charger / permission checks run as for a tap on its button.
     var startRequested by remember { mutableStateOf(false) }
     LaunchedEffect(launchAction) {
         val action = launchAction ?: return@LaunchedEffect
         if (action == LaunchAction.START_TRACKING) startRequested = true
-        navigateToTab(Screen.Tracking)
+        navigateToTab(Screen.Tonight)
         onLaunchActionHandled()
     }
 
@@ -116,12 +121,12 @@ fun AppNavHost(
                 ) {
                     items.forEach { screen ->
                         val selected = currentRoute == screen.route ||
-                                (screen == Screen.Analytics && currentRoute?.startsWith("session_detail") == true)
+                                (screen == Screen.Nights && currentRoute?.startsWith("session_detail") == true)
                         NavigationBarItem(
                             selected = selected,
                             onClick = { if (currentRoute != screen.route) navigateToTab(screen) },
                             icon = {
-                                if (screen == Screen.Tracking && trackingState.isTracking) {
+                                if (screen == Screen.Tonight && trackingState.isTracking) {
                                     BadgedBox(badge = { LiveBadge() }) {
                                         Icon(screen.icon, contentDescription = null)
                                     }
@@ -144,7 +149,7 @@ fun AppNavHost(
         ) { padding ->
             NavHost(
                 navController = navController,
-                startDestination = Screen.Home.route,
+                startDestination = Screen.Tonight.route,
                 modifier = Modifier
                     .padding(padding)
                     .consumeWindowInsets(padding),
@@ -153,47 +158,43 @@ fun AppNavHost(
                 popEnterTransition = { fadeIn(tween(TRANSITION_MILLIS)) },
                 popExitTransition = { fadeOut(tween(TRANSITION_MILLIS / 2)) }
             ) {
-                composable(Screen.Home.route) {
-                    HomeScreen(
-                        onNavigateToTracking = { navigateToTab(Screen.Tracking) },
-                        onNavigateToTreatments = { navigateToTab(Screen.Treatments) },
-                        onNavigateToSessionDetail = { sessionId ->
-                            navController.navigate(Screen.SessionDetail.createRoute(sessionId))
-                        }
-                    )
-                }
-
-                composable(Screen.Tracking.route) {
+                composable(Screen.Tonight.route) {
                     TrackingScreen(
-                        onNavigateToTreatments = { navigateToTab(Screen.Treatments) },
                         startRequested = startRequested,
-                        onStartRequestHandled = { startRequested = false }
-                    )
-                }
-
-                composable(Screen.Analytics.route) {
-                    AnalyticsScreen(
-                        onNavigateToSessionDetail = { sessionId ->
-                            navController.navigate(Screen.SessionDetail.createRoute(sessionId))
+                        onStartRequestHandled = { startRequested = false },
+                        idleContent = { onStart, microphoneFailed ->
+                            HomeScreen(
+                                onStart = onStart,
+                                microphoneFailed = microphoneFailed,
+                                onOpenSettings = ::openSettings,
+                                onManageTreatments = ::openTreatments,
+                                onNavigateToSessionDetail = ::openSessionDetail
+                            )
                         }
                     )
                 }
 
-                composable(Screen.Treatments.route) {
-                    TreatmentsScreen()
+                composable(Screen.Nights.route) {
+                    NightsScreen(onNavigateToSessionDetail = ::openSessionDetail)
+                }
+
+                composable(Screen.Trends.route) {
+                    AnalyticsScreen(onManageTreatments = ::openTreatments)
+                }
+
+                composable(Screen.Settings.route, enterTransition = { pushEnter() }, popExitTransition = { pushPopExit() }) {
+                    SettingsScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(Screen.Treatments.route, enterTransition = { pushEnter() }, popExitTransition = { pushPopExit() }) {
+                    TreatmentsScreen(onBack = { navController.popBackStack() })
                 }
 
                 composable(
                     route = Screen.SessionDetail.route,
                     arguments = listOf(navArgument("sessionId") { type = NavType.IntType }),
-                    enterTransition = {
-                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(TRANSITION_MILLIS)) +
-                                fadeIn(tween(TRANSITION_MILLIS))
-                    },
-                    popExitTransition = {
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(TRANSITION_MILLIS)) +
-                                fadeOut(tween(TRANSITION_MILLIS))
-                    }
+                    enterTransition = { pushEnter() },
+                    popExitTransition = { pushPopExit() }
                 ) { backStackEntry ->
                     val sessionId = backStackEntry.arguments?.getInt("sessionId") ?: return@composable
                     SessionDetailScreen(
@@ -212,6 +213,14 @@ fun AppNavHost(
         )
     }
 }
+
+private fun AnimatedContentTransitionScope<*>.pushEnter() =
+    slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(TRANSITION_MILLIS)) +
+        fadeIn(tween(TRANSITION_MILLIS))
+
+private fun AnimatedContentTransitionScope<*>.pushPopExit() =
+    slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(TRANSITION_MILLIS)) +
+        fadeOut(tween(TRANSITION_MILLIS))
 
 /** Pulsing dot shown on the Tracking tab while a night is being recorded. */
 @Composable
