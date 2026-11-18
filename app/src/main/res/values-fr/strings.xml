@@ -85,7 +85,7 @@
     <!-- Session Detail -->
     <string name="screen_session_detail">Détail de la Nuit</string>
     <string name="night_detail">Détail de la Nuit</string>
-    <string name="noise_timeline">Chronologie du Bruit</string>
+    <string name="noise_timeline">Chronologie de la nuit</string>
     <string name="snore_threshold">Seuil de ronflement</string>
     <string name="avg_db">Moy. dB</string>
     <string name="max_db">Max dB</string>
@@ -269,4 +269,25 @@
     <string name="night_screen_desc">Après 30 s sans toucher le téléphone pendant une nuit, affiche une horloge sombre. Elle apparaît aussi par-dessus l’écran de verrouillage.</string>
     <string name="night_screen_recording">Enregistrement · %1$s</string>
     <string name="night_screen_open_app">Ouvrir SleepLab</string>
+    <string name="snoring_of_night">%1$s de ronflement · %2$s de la nuit</string>
+    <string name="no_snoring_detected">Aucun ronflement détecté</string>
+    <string name="episodes_title">Épisodes de ronflement (%1$d)</string>
+    <string name="episodes_hint">Les ronflements à moins d’une minute d’écart sont regroupés.</string>
+    <string name="show_all_snores">Voir chaque ronflement (%1$d)</string>
+    <string name="hide_all_snores">Masquer le détail</string>
+    <string name="peak_db">pic %1$d dB</string>
+    <string name="snores_detected">Ronflements</string>
+    <string name="technical_details">Détails techniques</string>
+    <string name="technical_details_hint">Niveaux relatifs au micro de ce téléphone, pas des dB calibrés.</string>
+    <string name="edit_factors">Modifier</string>
+    <string name="done">Terminé</string>
+    <string name="no_factors_tagged">Aucun facteur pour cette nuit</string>
+    <string name="clips_nudge_title">Écoutez vos ronflements</string>
+    <string name="clips_nudge_message">Activez les enregistrements pour réécouter chaque épisode dès la prochaine nuit. Ils restent sur ce téléphone.</string>
+    <string name="clips_nudge_enable">Activer</string>
+    <plurals name="snores_count">
+        <item quantity="one">%d ronflement</item>
+        <item quantity="many">%d ronflements</item>
+        <item quantity="other">%d ronflements</item>
+    </plurals>
 </resources>

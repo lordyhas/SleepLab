@@ -8,7 +8,10 @@ import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.SnoreEventEntity
 import com.lordyhas.sleeplab.data.local.entity.FactorEntity
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.lordyhas.sleeplab.ui.util.SnoreEpisode
+import com.lordyhas.sleeplab.ui.util.SnoreEpisodes
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +29,8 @@ data class SessionDetailUiState(
     val maxDb: Float = 0f,
     val minDb: Float = 0f,
     val snoreEventCount: Int = 0,
+    /** Snores grouped into stretches of snoring, in time order. */
+    val episodes: List<SnoreEpisode> = emptyList(),
     /** True once the night has been deleted; the screen should close. */
     val isDeleted: Boolean = false
 )
@@ -39,6 +44,14 @@ class SessionDetailViewModel(
     private val snoreEventRepository = SleepLabApp.instance.snoreEventRepository
     private val treatmentRepository = SleepLabApp.instance.treatmentRepository
     private val factorRepository = SleepLabApp.instance.factorRepository
+    private val settingsRepository = SleepLabApp.instance.settingsRepository
+
+    /** Offer to turn recordings on: they're off and the offer wasn't dismissed. */
+    val showClipsNudge: StateFlow<Boolean> = combine(
+        settingsRepository.clipsEnabled,
+        settingsRepository.clipsNudgeDismissed
+    ) { enabled, dismissed -> !enabled && !dismissed }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val factors: StateFlow<List<FactorEntity>> = factorRepository.getAllFactors()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -70,7 +83,8 @@ class SessionDetailViewModel(
                     averageDb = avgDb,
                     maxDb = maxDb,
                     minDb = minDb,
-                    snoreEventCount = snoreEvents.size
+                    snoreEventCount = snoreEvents.size,
+                    episodes = SnoreEpisodes.group(snoreEvents)
                 )
             }
         }
@@ -111,6 +125,10 @@ class SessionDetailViewModel(
     fun updateMorningRating(rating: Int?) {
         viewModelScope.launch { sessionRepository.updateMorningRating(sessionId, rating) }
     }
+
+    fun enableClips() = settingsRepository.setClipsEnabled(true)
+
+    fun dismissClipsNudge() = settingsRepository.dismissClipsNudge()
 
     fun deleteNight() {
         // Flag first: deleting makes the observed session emit null, which must not

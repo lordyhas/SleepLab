@@ -25,6 +25,10 @@ class SettingsRepository(context: Context) {
     /** Save short audio clips of detected snores (opt-in). */
     val clipsEnabled: StateFlow<Boolean> = _clipsEnabled.asStateFlow()
 
+    private val _clipsNudgeDismissed = MutableStateFlow(prefs.getBoolean(KEY_CLIPS_NUDGE_DISMISSED, false))
+    /** The night report's "turn on recordings" card was dismissed for good. */
+    val clipsNudgeDismissed: StateFlow<Boolean> = _clipsNudgeDismissed.asStateFlow()
+
     private val _clipRetentionDays = MutableStateFlow(prefs.getInt(KEY_CLIP_RETENTION_DAYS, DEFAULT_CLIP_RETENTION_DAYS))
     /** Clips older than this are deleted automatically; 0 = keep forever. */
     val clipRetentionDays: StateFlow<Int> = _clipRetentionDays.asStateFlow()
@@ -93,6 +97,11 @@ class SettingsRepository(context: Context) {
         prefs.edit().putBoolean(KEY_CLIPS_ENABLED, enabled).apply()
     }
 
+    fun dismissClipsNudge() {
+        _clipsNudgeDismissed.value = true
+        prefs.edit().putBoolean(KEY_CLIPS_NUDGE_DISMISSED, true).apply()
+    }
+
     fun setClipRetentionDays(days: Int) {
         _clipRetentionDays.value = days
         prefs.edit().putInt(KEY_CLIP_RETENTION_DAYS, days).apply()
@@ -140,6 +149,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_AUTO_CALIBRATE = "auto_calibrate"
         private const val KEY_CLIPS_ENABLED = "clips_enabled"
         private const val KEY_CLIP_RETENTION_DAYS = "clip_retention_days"
+        private const val KEY_CLIPS_NUDGE_DISMISSED = "clips_nudge_dismissed"
         private const val KEY_START_DELAY_MIN = "start_delay_minutes"
         private const val KEY_TONIGHT_FACTORS = "tonight_factor_ids"
         private const val KEY_AUTO_STOP_ENABLED = "auto_stop_enabled"
