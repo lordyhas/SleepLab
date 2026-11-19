@@ -9,6 +9,7 @@ import com.lordyhas.sleeplab.data.local.entity.FactorEntity
 import com.lordyhas.sleeplab.data.repository.FactorRepository
 import com.lordyhas.sleeplab.data.repository.SleepSessionRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
+import com.lordyhas.sleeplab.ui.util.forStats
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -31,7 +32,10 @@ data class TreatmentImpact(
 data class AnalyticsUiState(
     /** False until the database has answered once. */
     val isLoaded: Boolean = false,
+    /** Nights that count in statistics (see `forStats`), oldest first. */
     val sessionsWithTreatments: List<SessionWithTreatment> = emptyList(),
+    /** Every completed night, short ones included, newest first — for the history list. */
+    val historySessions: List<SessionWithTreatment> = emptyList(),
     val treatmentImpacts: List<TreatmentImpact> = emptyList(),
     val overallImprovementPercentage: Float? = null,
     val averageSnoreWithoutTreatmentMinutes: Float = 0f,
@@ -63,15 +67,19 @@ class AnalyticsViewModel(
     ) { sessions, treatments, factors, sessionFactors ->
         val treatmentMap = treatments.associateBy { it.id }
 
-        val completedSessions = sessions.filter { it.endTime > 0 }
-            .sortedBy { it.startTime }
+        fun withTreatment(session: SleepSessionEntity) = SessionWithTreatment(
+            session = session,
+            treatmentName = session.treatmentId?.let { treatmentMap[it]?.name }
+        )
 
-        val sessionsWithTreatments = completedSessions.map { session ->
-            SessionWithTreatment(
-                session = session,
-                treatmentName = session.treatmentId?.let { treatmentMap[it]?.name }
-            )
-        }
+        val historySessions = sessions.filter { it.endTime > 0 }
+            .sortedByDescending { it.startTime }
+            .map(::withTreatment)
+
+        // Short test nights stay in the history but would skew every average below.
+        val completedSessions = sessions.forStats().sortedBy { it.startTime }
+
+        val sessionsWithTreatments = completedSessions.map(::withTreatment)
 
         // Calculate metrics
         val noTreatmentSessions = completedSessions.filter { it.treatmentId == null }
@@ -146,6 +154,7 @@ class AnalyticsViewModel(
             minutesByDay = Insights.minutesByDay(nights),
             sessionIdByDay = nights.sortedBy { it.startTime }.associate { Insights.nightDayKey(it.startTime) to it.sessionId },
             sessionsWithTreatments = sessionsWithTreatments,
+            historySessions = historySessions,
             treatmentImpacts = impacts,
             overallImprovementPercentage = overallImprovement,
             averageSnoreWithoutTreatmentMinutes = avgNoTreatmentMinutes,

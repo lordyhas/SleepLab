@@ -14,6 +14,9 @@
     <string name="manage">Gérer</string>
     <string name="no_treatment">Sans traitement</string>
     <string name="last_night">Dernière Nuit</string>
+    <string name="latest_night">Dernière nuit enregistrée</string>
+    <string name="short_night_hint">Nuit courte · hors statistiques</string>
+    <string name="sound_level">Niveau sonore</string>
     <string name="no_night_recorded">Aucune nuit enregistrée pour le moment. Lancez votre premier suivi pour voir vos résultats !</string>
     <string name="sleep_title">Sommeil</string>
     <string name="snoring_title">Ronflements</string>
@@ -27,7 +30,7 @@
     <string name="no_specific_treatment">Aucun traitement spécifique</string>
     <string name="sleep_tracking">Suivi du Sommeil</string>
     <string name="recording_in_progress">Enregistrement en cours</string>
-    <string name="db_spl">dB SPL</string>
+    <string name="db_spl">dB</string>
     <string name="events">événements</string>
     <string name="snore_time">Temps ronflé</string>
     <string name="cumulative_duration">durée cumulée</string>
