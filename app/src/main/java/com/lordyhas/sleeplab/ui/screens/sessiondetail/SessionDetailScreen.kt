@@ -1,6 +1,17 @@
 package com.lordyhas.sleeplab.ui.screens.sessiondetail
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.ui.res.pluralStringResource
+import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
+import com.lordyhas.sleeplab.ui.components.IconBadge
+import com.lordyhas.sleeplab.ui.components.icon
+import com.lordyhas.sleeplab.ui.components.label
+import com.lordyhas.sleeplab.ui.util.SnoreEpisode
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -113,7 +124,7 @@ internal fun chartDbRange(values: List<Float>): Pair<Float, Float> {
     return low to high
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SessionDetailScreen(
     sessionId: Int,
@@ -131,9 +142,14 @@ fun SessionDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val factors by viewModel.factors.collectAsState()
     val nightFactorIds by viewModel.factorIds.collectAsState()
+    val showClipsNudge by viewModel.showClipsNudge.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     val clipPlayer = rememberClipPlayer()
     var showNoteDialog by remember { mutableStateOf(false) }
+    var showClipsConsent by remember { mutableStateOf(false) }
+    var showAllSnores by rememberSaveable { mutableStateOf(false) }
+    var editingFactors by rememberSaveable { mutableStateOf(false) }
+    var showTechnical by rememberSaveable { mutableStateOf(false) }
     // The bar turns solid once content scrolls under it, so rows never mix with the title.
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
@@ -192,81 +208,10 @@ fun SessionDetailScreen(
             else -> {
                 val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
                 val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-                val display = session.scoreDisplay()
-                val score = display.value
+                val episodes = uiState.episodes
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = padding.calculateTopPadding() + 4.dp,
-                        bottom = 32.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    item {
-                        GlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        dateFormat.format(Date(session.startTime)).replaceFirstChar { it.titlecase() },
-                                        style = MaterialTheme.typography.titleLarge
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "${timeFormat.format(Date(session.startTime))} → ${timeFormat.format(Date(session.endTime))}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        formatDuration(sessionDurationSeconds(session.startTime, session.endTime)),
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(Modifier.height(10.dp))
-                                    Pill(
-                                        text = uiState.treatmentName ?: stringResource(R.string.no_treatment),
-                                        color = if (uiState.treatmentName != null) SleepIndigoLight else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        icon = Icons.Default.MedicalServices
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        session.noiseFloorDb?.let {
-                                            stringResource(R.string.detection_info_auto, it.toInt(), session.thresholdDb.toInt())
-                                        } ?: stringResource(R.string.detection_info_manual, session.thresholdDb.toInt()),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (display.isLegacy) {
-                                        Text(
-                                            stringResource(R.string.legacy_score_hint),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                    }
-                                }
-                                GaugeRing(
-                                    progress = score / 100f,
-                                    color = display.color,
-                                    strokeWidth = 8.dp,
-                                    animationMillis = 900,
-                                    modifier = Modifier.size(96.dp)
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("${score.toInt()}", style = MaterialTheme.typography.headlineSmall)
-                                        Text(
-                                            stringResource(display.labelRes),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    item {
+                val morningCard: LazyListScope.() -> Unit = {
+                    item(key = "morning") {
                         GlassCard(modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.morning_rating_label), style = MaterialTheme.typography.titleSmall)
                             Spacer(Modifier.height(8.dp))
@@ -278,58 +223,42 @@ fun SessionDetailScreen(
                             HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
                             Spacer(Modifier.height(4.dp))
                             NoteRow(note = session.note, onEdit = { showNoteDialog = true })
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                            Spacer(Modifier.height(12.dp))
-                            Text(stringResource(R.string.night_factors), style = MaterialTheme.typography.titleSmall)
-                            Spacer(Modifier.height(8.dp))
-                            FactorPicker(
-                                factors = factors,
-                                selectedIds = nightFactorIds,
-                                onToggle = viewModel::toggleFactor,
-                                onAddCustom = viewModel::addCustomFactor
+                        }
+                    }
+                }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = padding.calculateTopPadding() + 4.dp,
+                        bottom = 32.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item(key = "summary") {
+                        NightSummaryCard(
+                            date = dateFormat.format(Date(session.startTime)).replaceFirstChar { it.titlecase() },
+                            times = "${timeFormat.format(Date(session.startTime))} → ${timeFormat.format(Date(session.endTime))}",
+                            session = session,
+                            treatmentName = uiState.treatmentName
+                        )
+                    }
+
+                    // Not rated yet: ask right away, it is what the morning visit is for.
+                    if (session.morningRating == null) morningCard()
+
+                    if (showClipsNudge && episodes.isNotEmpty()) {
+                        item(key = "clipsNudge") {
+                            ClipsNudgeCard(
+                                onEnable = { showClipsConsent = true },
+                                onDismiss = viewModel::dismissClipsNudge
                             )
                         }
                     }
 
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                MetricTile(
-                                    modifier = Modifier.weight(1f),
-                                    label = stringResource(R.string.avg_db),
-                                    value = "${uiState.averageDb.toInt()}",
-                                    icon = Icons.AutoMirrored.Filled.ShowChart,
-                                    tint = SleepTealAccent
-                                )
-                                MetricTile(
-                                    modifier = Modifier.weight(1f),
-                                    label = stringResource(R.string.max_db),
-                                    value = "${uiState.maxDb.toInt()}",
-                                    icon = Icons.AutoMirrored.Filled.VolumeUp,
-                                    tint = SnoreHigh
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                MetricTile(
-                                    modifier = Modifier.weight(1f),
-                                    label = stringResource(R.string.min_db),
-                                    value = "${uiState.minDb.toInt()}",
-                                    icon = Icons.AutoMirrored.Filled.VolumeDown,
-                                    tint = SnoreLow
-                                )
-                                MetricTile(
-                                    modifier = Modifier.weight(1f),
-                                    label = stringResource(R.string.snore_episodes),
-                                    value = "${uiState.snoreEventCount}",
-                                    caption = formatDuration(session.totalSnoreDurationSeconds.toLong()),
-                                    icon = Icons.Default.GraphicEq,
-                                    tint = SnoreMedium
-                                )
-                            }
-                        }
-                    }
-
-                    item {
+                    item(key = "timeline") {
                         GlassCard(modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.noise_timeline), style = MaterialTheme.typography.titleSmall)
                             Spacer(Modifier.height(4.dp))
@@ -355,6 +284,7 @@ fun SessionDetailScreen(
                                 NightTimelineChart(
                                     noiseSamples = uiState.noiseSamples,
                                     snoreEvents = uiState.snoreEvents,
+                                    episodes = episodes,
                                     sessionStartTime = session.startTime,
                                     sessionEndTime = session.endTime,
                                     thresholdDb = session.thresholdDb,
@@ -366,29 +296,109 @@ fun SessionDetailScreen(
                         }
                     }
 
-                    if (uiState.snoreEvents.isNotEmpty()) {
-                        item {
+                    if (episodes.isNotEmpty()) {
+                        item(key = "episodesHeader") {
                             Spacer(Modifier.height(4.dp))
-                            SectionHeader(stringResource(R.string.snore_events_list))
+                            SectionHeader(stringResource(R.string.episodes_title, episodes.size))
+                            Text(
+                                stringResource(R.string.episodes_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        item {
+                        item(key = "episodes") {
                             GlassCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
                             ) {
-                                uiState.snoreEvents.forEachIndexed { index, event ->
-                                    if (index > 0) {
-                                        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                    }
-                                    SnoreEventRow(
-                                        event = event,
-                                        time = timeFormat.format(Date(event.timestamp)),
-                                        isPlaying = event.clipPath != null && clipPlayer.playingPath == event.clipPath,
-                                        onPlay = { event.clipPath?.let(clipPlayer::toggle) }
+                                episodes.forEachIndexed { index, episode ->
+                                    if (index > 0) HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                                    val clip = episode.clipPath
+                                    EpisodeRow(
+                                        episode = episode,
+                                        timeRange = timeRange(timeFormat.format(Date(episode.startTime)), timeFormat.format(Date(episode.endTime))),
+                                        isPlaying = clip != null && clipPlayer.playingPath == clip,
+                                        onPlay = { clip?.let(clipPlayer::toggle) }
                                     )
+                                }
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                                TextButton(
+                                    onClick = { showAllSnores = !showAllSnores },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        if (showAllSnores) stringResource(R.string.hide_all_snores)
+                                        else stringResource(R.string.show_all_snores, uiState.snoreEventCount)
+                                    )
+                                }
+                                if (showAllSnores) {
+                                    uiState.snoreEvents.forEach { event ->
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.04f))
+                                        SnoreEventRow(
+                                            event = event,
+                                            time = timeFormat.format(Date(event.timestamp)),
+                                            isPlaying = event.clipPath != null && clipPlayer.playingPath == event.clipPath,
+                                            onPlay = { event.clipPath?.let(clipPlayer::toggle) }
+                                        )
+                                    }
                                 }
                             }
                         }
+                    }
+
+                    if (session.morningRating != null) morningCard()
+
+                    item(key = "factors") {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    stringResource(R.string.night_factors),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { editingFactors = !editingFactors }) {
+                                    Text(stringResource(if (editingFactors) R.string.done else R.string.edit_factors))
+                                }
+                            }
+                            if (editingFactors) {
+                                FactorPicker(
+                                    factors = factors,
+                                    selectedIds = nightFactorIds,
+                                    onToggle = viewModel::toggleFactor,
+                                    onAddCustom = viewModel::addCustomFactor
+                                )
+                            } else {
+                                val selected = factors.filter { it.id in nightFactorIds }
+                                if (selected.isEmpty()) {
+                                    Text(
+                                        stringResource(R.string.no_factors_tagged),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        selected.forEach { factor ->
+                                            Pill(text = factor.label(), color = SleepIndigoLight, icon = factor.icon())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item(key = "technical") {
+                        TechnicalDetailsCard(
+                            expanded = showTechnical,
+                            onToggle = { showTechnical = !showTechnical },
+                            session = session,
+                            averageDb = uiState.averageDb,
+                            maxDb = uiState.maxDb,
+                            minDb = uiState.minDb,
+                            snoreCount = uiState.snoreEventCount
+                        )
                     }
                 }
             }
@@ -419,6 +429,25 @@ fun SessionDetailScreen(
         )
     }
 
+    if (showClipsConsent) {
+        // Same consent as in settings: recordings stay opt-in.
+        AlertDialog(
+            onDismissRequest = { showClipsConsent = false },
+            icon = { Icon(Icons.Default.GraphicEq, contentDescription = null) },
+            title = { Text(stringResource(R.string.clips_consent_title)) },
+            text = { Text(stringResource(R.string.clips_consent_message)) },
+            confirmButton = {
+                Button(onClick = {
+                    showClipsConsent = false
+                    viewModel.enableClips()
+                }) { Text(stringResource(R.string.clips_consent_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClipsConsent = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
     if (showNoteDialog) {
         NoteDialog(
             initial = uiState.session?.note.orEmpty(),
@@ -427,6 +456,233 @@ fun SessionDetailScreen(
                 viewModel.updateNote(note)
                 showNoteDialog = false
             }
+        )
+    }
+}
+
+/** Score, verdict and how much of the night was spent snoring: the answer to "how was my night?". */
+@Composable
+private fun NightSummaryCard(
+    date: String,
+    times: String,
+    session: SleepSessionEntity,
+    treatmentName: String?
+) {
+    val display = session.scoreDisplay()
+    val score = display.value
+    val nightSeconds = sessionDurationSeconds(session.startTime, session.endTime)
+    val snoreSeconds = session.totalSnoreDurationSeconds.toLong()
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(date, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(4.dp))
+                Text(times, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatDuration(nightSeconds), style = MaterialTheme.typography.headlineSmall)
+            }
+            GaugeRing(
+                progress = score / 100f,
+                color = display.color,
+                strokeWidth = 8.dp,
+                animationMillis = 900,
+                modifier = Modifier.size(96.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${score.toInt()}", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        stringResource(display.labelRes),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            if (snoreSeconds == 0L) stringResource(R.string.no_snoring_detected)
+            else stringResource(R.string.snoring_of_night, formatDuration(snoreSeconds), nightShare(snoreSeconds, nightSeconds)),
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill(text = stringResource(display.levelRes), color = display.color)
+            Pill(
+                text = treatmentName ?: stringResource(R.string.no_treatment),
+                color = if (treatmentName != null) SleepIndigoLight else MaterialTheme.colorScheme.onSurfaceVariant,
+                icon = Icons.Default.MedicalServices
+            )
+        }
+    }
+}
+
+/** "01:04 – 01:29", or just "01:03" when the episode starts and ends in the same minute. */
+private fun timeRange(start: String, end: String) = if (start == end) start else "$start – $end"
+
+/** "12%", or "<1%" so a few minutes of snoring never reads as zero. */
+internal fun nightShare(snoreSeconds: Long, nightSeconds: Long): String {
+    if (nightSeconds <= 0) return "0%"
+    val percent = snoreSeconds * 100.0 / nightSeconds
+    return if (snoreSeconds > 0 && percent < 1.0) "<1%" else "${percent.toInt()}%"
+}
+
+@Composable
+private fun ClipsNudgeCard(onEnable: () -> Unit, onDismiss: () -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon = Icons.Default.GraphicEq, tint = SnoreMedium)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.clips_nudge_title), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.clips_nudge_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.not_now)) }
+            Spacer(Modifier.width(4.dp))
+            Button(onClick = onEnable) { Text(stringResource(R.string.clips_nudge_enable)) }
+        }
+    }
+}
+
+/** dB values and detection settings: useful to check the detector, not to read the night. */
+@Composable
+private fun TechnicalDetailsCard(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    session: SleepSessionEntity,
+    averageDb: Float,
+    maxDb: Float,
+    minDb: Float,
+    snoreCount: Int
+) {
+    GlassCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.technical_details),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    session.noiseFloorDb?.let {
+                        stringResource(R.string.detection_info_auto, it.toInt(), session.thresholdDb.toInt())
+                    } ?: stringResource(R.string.detection_info_manual, session.thresholdDb.toInt()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.avg_db),
+                        value = "${averageDb.toInt()}",
+                        icon = Icons.AutoMirrored.Filled.ShowChart,
+                        tint = SleepTealAccent
+                    )
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.max_db),
+                        value = "${maxDb.toInt()}",
+                        icon = Icons.AutoMirrored.Filled.VolumeUp,
+                        tint = SnoreHigh
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.min_db),
+                        value = "${minDb.toInt()}",
+                        icon = Icons.AutoMirrored.Filled.VolumeDown,
+                        tint = SnoreLow
+                    )
+                    MetricTile(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.snores_detected),
+                        value = "$snoreCount",
+                        icon = Icons.Default.GraphicEq,
+                        tint = SnoreMedium
+                    )
+                }
+                Text(
+                    stringResource(R.string.technical_details_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                if (session.scoreDisplay().isLegacy) {
+                    Text(
+                        stringResource(R.string.legacy_score_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeRow(episode: SnoreEpisode, timeRange: String, isPlaying: Boolean, onPlay: () -> Unit) {
+    val color = snoreLevelColor(episode.peakDb)
+    val hasClip = episode.clipPath != null
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = if (hasClip) 6.dp else 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (hasClip) {
+            FilledTonalIconButton(
+                onClick = onPlay,
+                modifier = Modifier.size(40.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = color.copy(alpha = 0.16f),
+                    contentColor = color
+                )
+            ) {
+                Icon(
+                    if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                    contentDescription = stringResource(if (isPlaying) R.string.stop_clip else R.string.play_clip)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+        } else {
+            Dot(color = color, size = 10.dp)
+            Spacer(Modifier.width(14.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(timeRange, style = MaterialTheme.typography.titleSmall)
+            Text(
+                "${formatDuration(episode.durationMs / 1000)} · " +
+                    pluralStringResource(R.plurals.snores_count, episode.snoreCount, episode.snoreCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            stringResource(R.string.peak_db, episode.peakDb.toInt()),
+            style = MaterialTheme.typography.labelLarge,
+            color = color
         )
     }
 }
@@ -558,6 +814,7 @@ private fun SnoreEventRow(event: SnoreEventEntity, time: String, isPlaying: Bool
 private fun NightTimelineChart(
     noiseSamples: List<NoiseSampleEntity>,
     snoreEvents: List<SnoreEventEntity>,
+    episodes: List<SnoreEpisode>,
     sessionStartTime: Long,
     sessionEndTime: Long,
     thresholdDb: Float,
@@ -606,10 +863,10 @@ private fun NightTimelineChart(
             drawText(label, topLeft = Offset(0f, (y - label.size.height / 2f).coerceAtLeast(0f)))
         }
 
-        // Snore events as translucent bands
-        snoreEvents.forEach { event ->
-            val x = xFor(event.timestamp)
-            val bandWidth = ((event.durationSeconds * 1000f) / durationMs * width).coerceAtLeast(2.dp.toPx())
+        // Snoring episodes as translucent bands
+        episodes.forEach { episode ->
+            val x = xFor(episode.startTime)
+            val bandWidth = (episode.durationMs / durationMs * width).coerceAtLeast(2.dp.toPx())
             drawRect(
                 color = SnoreHigh.copy(alpha = 0.22f),
                 topLeft = Offset(x, 0f),
