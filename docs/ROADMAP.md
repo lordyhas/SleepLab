@@ -109,6 +109,56 @@ lock screen, no unlock · "Open SleepLab" asks for the unlock · stop from the n
 - [ ] **Store requirements** (if published on Google Play) — hosted privacy policy, microphone
       foreground-service declaration, onboarding (see Phase 7).
 
+## UX redesign — after the first real-night test
+
+Goal: the app answers "how did I sleep last night?" first, instead of showing raw detector output.
+Found by walking through 1.0.2 on the phone after a full night. Three PRs, in this order. None
+needs a DB migration: episodes are computed from the existing `snore_events`.
+
+### Fixes (`fix/ux-basics`)
+
+- [ ] **Opaque top bar** — Session detail's `TopAppBar` is transparent, so rows scroll under the
+      title; tab screens also scroll under the status-bar clock. Add a scrim or solid bar.
+- [ ] **"Last night" label** — Home shows a night from three days ago as "Last Night"; show the
+      real date ("Sun 15 Nov") unless it really is last night.
+- [ ] **Short nights out of stats** — nights under ~1 h (tests, false starts) are kept and listed
+      but left out of averages, "Best night" (currently 0 min) and average time in bed.
+- [ ] **Chart axes** — the night timeline scales to the night's own levels (not a fixed 80 dB top);
+      "dB SPL" becomes "level" (values are relative, not calibrated); the Nights chart doesn't
+      repeat a date label when two nights share a day.
+
+**Test:** scroll Session detail → no text under the title · a 1-min test night doesn't change the
+Overview numbers.
+
+### Night report (`feat/night-report`)
+
+- [ ] **Snore episodes** — group snores less than ~60 s apart into episodes ("01:03–01:38 ·
+      35 min · peak 44 dB"), pure and unit-tested. Session detail lists episodes; the per-breath
+      event list is collapsed behind "Show all snores".
+- [ ] **Report layout** — top: score, verdict, snoring minutes and % of the night; then the
+      timeline with episodes highlighted; then the episode list (▶ when a clip exists); morning
+      rating and note; factors show only the selected ones plus "Edit"; avg/min/max dB move to a
+      collapsible "Technical details".
+- [ ] **Clips nudge** — after the first recorded night, offer to turn snore recordings on (still
+      opt-in) so episodes can be played back.
+
+**Test:** the 15 Nov night shows a handful of episodes instead of 259 rows · tapping ▶ on an
+episode with a clip plays it.
+
+### Navigation (`feat/navigation`)
+
+- [ ] **Tonight tab** (merges Home + Tracking) — evening: treatment, factors, one Start button;
+      during a night: the live view; morning: last night's report card with the rating prompt on top.
+- [ ] **Nights tab** — history list + calendar, each night opening its report (moved out of
+      Analytics).
+- [ ] **Trends tab** — charts, insights, treatment comparison and treatment management.
+- [ ] **Settings** — detection, recordings and bedtime settings move behind a gear icon in the
+      header, out of the Treatments tab.
+- [ ] Launch actions (reminder, Quick Settings tile) route to the Tonight tab.
+
+**Test:** one Start button in the app · the morning after a night, opening the app shows that
+night's report and rating first · reminder and tile still start a night.
+
 ## Phase 6 — Sharing (`feat/reports`)
 
 - [ ] **PDF report** for a chosen period: nights, trend chart, treatment/factor comparison.
