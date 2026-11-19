@@ -64,6 +64,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lordyhas.sleeplab.R
+import com.lordyhas.sleeplab.ui.components.BatteryOptimizationCard
+import com.lordyhas.sleeplab.ui.components.SubScreen
 import com.lordyhas.sleeplab.data.local.entity.TreatmentEntity
 import com.lordyhas.sleeplab.ui.components.EmptyState
 import com.lordyhas.sleeplab.ui.components.GlassCard
@@ -77,10 +79,10 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun TreatmentsScreen(
+fun SettingsScreen(
+    onBack: () -> Unit,
     viewModel: TreatmentsViewModel = viewModel()
 ) {
-    val treatments by viewModel.treatments.collectAsState()
     val thresholdDb by viewModel.thresholdDb.collectAsState()
     val autoCalibrate by viewModel.autoCalibrate.collectAsState()
     val clipsEnabled by viewModel.clipsEnabled.collectAsState()
@@ -92,111 +94,112 @@ fun TreatmentsScreen(
     val autoStopMinuteOfDay by viewModel.autoStopMinuteOfDay.collectAsState()
     val reminderEnabled by viewModel.reminderEnabled.collectAsState()
     val reminderMinuteOfDay by viewModel.reminderMinuteOfDay.collectAsState()
+
+    SubScreen(title = stringResource(R.string.settings_title), onBack = onBack) {
+        item {
+            SectionHeader(stringResource(R.string.detection_section))
+            Spacer(Modifier.height(4.dp))
+            CalibrationCard(
+                autoCalibrate = autoCalibrate,
+                onAutoCalibrateChange = viewModel::setAutoCalibrate,
+                thresholdDb = thresholdDb,
+                onThresholdChange = viewModel::updateThreshold
+            )
+            Spacer(Modifier.height(14.dp))
+            ClipsSettingsCard(
+                enabled = clipsEnabled,
+                retentionDays = clipRetentionDays,
+                storageBytes = clipStorageBytes,
+                onEnabledChange = viewModel::setClipsEnabled,
+                onRetentionChange = viewModel::setClipRetentionDays,
+                onDeleteAll = viewModel::deleteAllClips
+            )
+        }
+
+        item {
+            Spacer(Modifier.height(4.dp))
+            SectionHeader(stringResource(R.string.bedtime_section))
+            Spacer(Modifier.height(4.dp))
+            BedtimeSettingsCard(
+                startDelayMinutes = startDelayMinutes,
+                autoStopEnabled = autoStopEnabled,
+                autoStopMinuteOfDay = autoStopMinuteOfDay,
+                reminderEnabled = reminderEnabled,
+                reminderMinuteOfDay = reminderMinuteOfDay,
+                nightScreenEnabled = nightScreenEnabled,
+                onNightScreenChange = viewModel::setNightScreenEnabled,
+                onStartDelayChange = viewModel::setStartDelayMinutes,
+                onAutoStopChange = viewModel::setAutoStop,
+                onReminderChange = viewModel::setReminder
+            )
+        }
+
+        item { BatteryOptimizationCard() }
+    }
+}
+
+@Composable
+fun TreatmentsScreen(
+    onBack: () -> Unit,
+    viewModel: TreatmentsViewModel = viewModel()
+) {
+    val treatments by viewModel.treatments.collectAsState()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<TreatmentEntity?>(null) }
-    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarTop + 12.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item { ScreenHeader(title = stringResource(R.string.treatments_and_settings)) }
-
-            item {
-                SectionHeader(stringResource(R.string.detection_section))
-                Spacer(Modifier.height(4.dp))
-                CalibrationCard(
-                    autoCalibrate = autoCalibrate,
-                    onAutoCalibrateChange = viewModel::setAutoCalibrate,
-                    thresholdDb = thresholdDb,
-                    onThresholdChange = viewModel::updateThreshold
-                )
-                Spacer(Modifier.height(14.dp))
-                ClipsSettingsCard(
-                    enabled = clipsEnabled,
-                    retentionDays = clipRetentionDays,
-                    storageBytes = clipStorageBytes,
-                    onEnabledChange = viewModel::setClipsEnabled,
-                    onRetentionChange = viewModel::setClipRetentionDays,
-                    onDeleteAll = viewModel::deleteAllClips
+    SubScreen(
+        title = stringResource(R.string.your_medical_treatments),
+        onBack = onBack,
+        bottomPadding = 96,
+        overlay = {
+            if (treatments.isNotEmpty()) {
+                ExtendedFloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.add_treatment_desc)) },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(20.dp)
                 )
             }
-
+        }
+    ) {
+        if (treatments.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(4.dp))
-                SectionHeader(stringResource(R.string.bedtime_section))
-                Spacer(Modifier.height(4.dp))
-                BedtimeSettingsCard(
-                    startDelayMinutes = startDelayMinutes,
-                    autoStopEnabled = autoStopEnabled,
-                    autoStopMinuteOfDay = autoStopMinuteOfDay,
-                    reminderEnabled = reminderEnabled,
-                    reminderMinuteOfDay = reminderMinuteOfDay,
-                    nightScreenEnabled = nightScreenEnabled,
-                    onNightScreenChange = viewModel::setNightScreenEnabled,
-                    onStartDelayChange = viewModel::setStartDelayMinutes,
-                    onAutoStopChange = viewModel::setAutoStop,
-                    onReminderChange = viewModel::setReminder
+                Text(
+                    stringResource(R.string.active_count, treatments.count { it.isActive }),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
                 )
-            }
-
-            item {
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SectionHeader(
-                        stringResource(R.string.your_medical_treatments),
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (treatments.isNotEmpty()) {
-                        Text(
-                            stringResource(R.string.active_count, treatments.count { it.isActive }),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            if (treatments.isEmpty()) {
-                item {
-                    EmptyState(
-                        icon = Icons.Default.MedicalServices,
-                        title = stringResource(R.string.no_saved_treatment),
-                        message = stringResource(R.string.add_treatment_instruction),
-                        action = {
-                            OutlinedButton(onClick = { showAddDialog = true }) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.add_first_treatment))
-                            }
-                        }
-                    )
-                }
-            } else {
-                items(treatments, key = { it.id }) { treatment ->
-                    TreatmentItemCard(
-                        treatment = treatment,
-                        onToggle = { viewModel.toggleTreatmentActive(treatment) },
-                        onDelete = { pendingDelete = treatment },
-                        modifier = Modifier.animateItem()
-                    )
-                }
             }
         }
 
-        if (treatments.isNotEmpty()) {
-            ExtendedFloatingActionButton(
-                onClick = { showAddDialog = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.add_treatment_desc)) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(20.dp)
-            )
+        if (treatments.isEmpty()) {
+            item {
+                EmptyState(
+                    icon = Icons.Default.MedicalServices,
+                    title = stringResource(R.string.no_saved_treatment),
+                    message = stringResource(R.string.add_treatment_instruction),
+                    action = {
+                        OutlinedButton(onClick = { showAddDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.add_first_treatment))
+                        }
+                    }
+                )
+            }
+        } else {
+            items(treatments, key = { it.id }) { treatment ->
+                TreatmentItemCard(
+                    treatment = treatment,
+                    onToggle = { viewModel.toggleTreatmentActive(treatment) },
+                    onDelete = { pendingDelete = treatment },
+                    modifier = Modifier.animateItem()
+                )
+            }
         }
     }
 

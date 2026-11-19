@@ -11,8 +11,9 @@ import com.lordyhas.sleeplab.service.SleepTrackingService
 import com.lordyhas.sleeplab.service.TrackingState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class TrackingViewModel(
     private val treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository,
@@ -24,25 +25,25 @@ class TrackingViewModel(
     val allTreatments: StateFlow<List<TreatmentEntity>> = treatmentRepository.getAllTreatments()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Treatment that will be recorded if a night is started from this screen. */
-    val plannedTreatment: StateFlow<TreatmentEntity?> = combine(
-        treatmentRepository.getActiveTreatments(),
-        settingsRepository.treatmentChoice
-    ) { active, choice ->
-        val id = SettingsRepository.resolveTreatmentId(choice, active)
-        active.firstOrNull { it.id == id }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
     /** Whether the dark night screen takes over once the phone is left alone during a night. */
     val nightScreenEnabled: StateFlow<Boolean> = settingsRepository.nightScreenEnabled
 
     fun startTracking(context: Context) {
-        SleepTrackingService.startService(
-            context,
-            treatmentId = plannedTreatment.value?.id,
-            thresholdDb = settingsRepository.thresholdDb.value,
-            autoCalibrate = settingsRepository.autoCalibrate.value
-        )
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            // Read tonight's treatment from the database at start time: nothing on screen keeps a
+            // cached copy current, and a tile/reminder start can happen before any UI loaded it.
+            val treatmentId = SettingsRepository.resolveTreatmentId(
+                settingsRepository.treatmentChoice.value,
+                treatmentRepository.getActiveTreatments().first()
+            )
+            SleepTrackingService.startService(
+                appContext,
+                treatmentId = treatmentId,
+                thresholdDb = settingsRepository.thresholdDb.value,
+                autoCalibrate = settingsRepository.autoCalibrate.value
+            )
+        }
     }
 
     fun stopTracking(context: Context) {

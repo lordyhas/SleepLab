@@ -91,7 +91,7 @@ private const val NIGHT_LABEL_OFFSET_MS = 12L * 60 * 60 * 1000
 @Composable
 fun AnalyticsScreen(
     viewModel: AnalyticsViewModel = viewModel(),
-    onNavigateToSessionDetail: (Int) -> Unit = {}
+    onManageTreatments: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var trendPeriod by rememberSaveable { mutableStateOf(TrendPeriod.NIGHTS) }
@@ -102,11 +102,11 @@ fun AnalyticsScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarTop + 12.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { ScreenHeader(title = stringResource(R.string.analytics_and_efficiency)) }
+        item { ScreenHeader(title = stringResource(R.string.screen_trends)) }
 
         if (!uiState.isLoaded) return@LazyColumn
 
-        if (uiState.historySessions.isEmpty()) {
+        if (uiState.sessionsWithTreatments.isEmpty()) {
             item {
                 EmptyState(
                     icon = Icons.Default.BarChart,
@@ -183,21 +183,17 @@ fun AnalyticsScreen(
         }
 
         if (uiState.sessionsWithTreatments.isNotEmpty()) {
-            item {
-                CalendarCard(
-                    minutesByDay = uiState.minutesByDay,
-                    sessionIdByDay = uiState.sessionIdByDay,
-                    onNightClick = onNavigateToSessionDetail
-                )
-            }
-
             item { FactorImpactCard(impacts = uiState.factorImpacts) }
 
             item { RatingCard(breakdown = uiState.ratingBreakdown, ratedNights = uiState.ratedNights) }
 
             item {
                 Spacer(Modifier.height(4.dp))
-                SectionHeader(stringResource(R.string.detail_by_treatment))
+                SectionHeader(
+                    stringResource(R.string.detail_by_treatment),
+                    actionLabel = stringResource(R.string.manage),
+                    onAction = onManageTreatments
+                )
             }
 
             val maxImpactMinutes = uiState.treatmentImpacts.maxOfOrNull { it.averageSnoreMinutes } ?: 0f
@@ -206,17 +202,6 @@ fun AnalyticsScreen(
             }
         }
 
-        item {
-            Spacer(Modifier.height(4.dp))
-            SectionHeader(stringResource(R.string.nights_history))
-        }
-
-        items(uiState.historySessions, key = { it.session.id }) { item ->
-            SessionHistoryRow(
-                item = item,
-                onClick = { onNavigateToSessionDetail(item.session.id) }
-            )
-        }
     }
 }
 
@@ -491,7 +476,7 @@ private fun TreatmentPerformanceCard(impact: TreatmentImpact, maxMinutes: Float)
 }
 
 @Composable
-private fun SessionHistoryRow(
+internal fun SessionHistoryRow(
     item: SessionWithTreatment,
     onClick: () -> Unit
 ) {

@@ -31,6 +31,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.IconButton
+import com.lordyhas.sleeplab.ui.components.BatteryOptimizationCard
+import com.lordyhas.sleeplab.ui.components.IconBadge
+import com.lordyhas.sleeplab.ui.theme.SnoreHigh
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
@@ -91,24 +100,24 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+/**
+ * The Tonight tab when no night is being recorded: last night's report first in the morning,
+ * then everything to set up and start tonight. While recording, `TrackingScreen` shows the live view.
+ */
 @Composable
 fun HomeScreen(
+    onStart: () -> Unit,
+    microphoneFailed: Boolean,
     viewModel: HomeViewModel = viewModel(),
-    onNavigateToTracking: () -> Unit = {},
-    onNavigateToTreatments: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onManageTreatments: () -> Unit = {},
     onNavigateToSessionDetail: (Int) -> Unit = {}
 ) {
-    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    val trackingState by viewModel.trackingState.collectAsState()
-
-    val startTracking = rememberStartNightGate {
-        viewModel.startTracking(context)
-        onNavigateToTracking()
-    }
-
     val todayFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val latest = uiState.latestSession
+    val morning = latest != null && isLastNight(latest.endTime)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -118,99 +127,123 @@ fun HomeScreen(
         item {
             ScreenHeader(
                 title = stringResource(greetingRes()),
-                overline = todayFormat.format(Date())
+                overline = todayFormat.format(Date()),
+                trailing = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title))
+                    }
+                }
             )
         }
 
-        item {
-            HeroCard(
-                isTracking = trackingState.isTracking,
-                elapsedSeconds = trackingState.elapsedSeconds,
-                snoreCount = trackingState.snoreCount,
-                onStartClick = startTracking,
-                onViewLiveClick = onNavigateToTracking
-            )
+        if (microphoneFailed) {
+            item { MicrophoneFailedCard() }
         }
 
-        val unratedNight = uiState.latestSession?.takeIf {
-            it.morningRating == null && isLastNight(it.endTime)
-        }
-        if (!trackingState.isTracking && unratedNight != null) {
-            item(key = "morningPrompt") {
-                MorningPromptCard(
-                    onRate = { rating -> viewModel.rateNight(unratedNight.id, rating) },
-                    modifier = Modifier.animateItem()
-                )
-            }
-        }
-
-        if (!trackingState.isTracking) {
-            item {
-                TreatmentSelectorSection(
-                    activeTreatments = uiState.activeTreatments,
-                    selectedId = uiState.selectedTreatmentId,
-                    onSelect = viewModel::selectTreatment,
-                    onManageClick = onNavigateToTreatments
-                )
-            }
-            item {
-                SectionHeader(stringResource(R.string.tonight_factors))
-                Text(
-                    stringResource(R.string.tonight_factors_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                FactorPicker(
-                    factors = uiState.factors,
-                    selectedIds = uiState.tonightFactorIds,
-                    onToggle = viewModel::toggleTonightFactor,
-                    onAddCustom = viewModel::addCustomFactor
-                )
-            }
-        }
-
-        item {
-            LastNightCard(
-                isLoaded = uiState.isLoaded,
-                latestSession = uiState.latestSession,
-                treatment = uiState.latestSessionTreatment,
-                onClick = { uiState.latestSession?.id?.let(onNavigateToSessionDetail) }
-            )
-        }
-
-        if (uiState.totalSessionsCount > 0) {
-            item {
-                SectionHeader(stringResource(R.string.overview))
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    MetricTile(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.nights_tracked),
-                        value = "${uiState.totalSessionsCount}",
-                        icon = Icons.Default.NightsStay,
-                        tint = SleepIndigoLight
-                    )
-                    MetricTile(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.avg_per_night),
-                        value = stringResource(R.string.minutes_value, uiState.averageSnoreDurationMinutes),
-                        icon = Icons.Default.GraphicEq,
-                        tint = SnoreMedium
-                    )
-                    MetricTile(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.best_night),
-                        value = stringResource(R.string.minutes_value, uiState.bestNightSnoreMinutes ?: 0),
-                        icon = Icons.Default.EmojiEvents,
-                        tint = SnoreLow
+        // Morning: the night that just ended comes first, with its rating prompt.
+        if (morning && latest != null) {
+            if (latest.morningRating == null) {
+                item(key = "morningPrompt") {
+                    MorningPromptCard(
+                        onRate = { rating -> viewModel.rateNight(latest.id, rating) },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
+            item(key = "lastNight") {
+                LastNightCard(
+                    isLoaded = uiState.isLoaded,
+                    latestSession = latest,
+                    treatment = uiState.latestSessionTreatment,
+                    onClick = { onNavigateToSessionDetail(latest.id) }
+                )
+            }
         }
+
+        item { StartCard(onStartClick = onStart) }
+
+        item { BatteryOptimizationCard() }
+
+        item {
+            TreatmentSelectorSection(
+                activeTreatments = uiState.activeTreatments,
+                selectedId = uiState.selectedTreatmentId,
+                onSelect = viewModel::selectTreatment,
+                onManageClick = onManageTreatments
+            )
+        }
+        item {
+            SectionHeader(stringResource(R.string.tonight_factors))
+            Text(
+                stringResource(R.string.tonight_factors_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            FactorPicker(
+                factors = uiState.factors,
+                selectedIds = uiState.tonightFactorIds,
+                onToggle = viewModel::toggleTonightFactor,
+                onAddCustom = viewModel::addCustomFactor
+            )
+        }
+
+        item { TipsCard() }
+
+        // Evening, or no night for a while: the latest night is still one tap away.
+        if (!morning) {
+            item(key = "latestNight") {
+                LastNightCard(
+                    isLoaded = uiState.isLoaded,
+                    latestSession = latest,
+                    treatment = uiState.latestSessionTreatment,
+                    onClick = { latest?.id?.let(onNavigateToSessionDetail) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MicrophoneFailedCard() {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon = Icons.Default.MicOff, tint = SnoreHigh, size = 32.dp)
+            Spacer(Modifier.width(12.dp))
+            Text(stringResource(R.string.mic_failed_title), style = MaterialTheme.typography.titleSmall)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            stringResource(R.string.mic_failed_message),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun TipsCard() {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.tips_title), style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(12.dp))
+        TipRow(Icons.Default.PhoneAndroid, SleepIndigoLight, stringResource(R.string.tip_placement))
+        Spacer(Modifier.height(10.dp))
+        TipRow(Icons.Default.BatteryChargingFull, SleepTealAccent, stringResource(R.string.tip_charger))
+        Spacer(Modifier.height(10.dp))
+        TipRow(Icons.AutoMirrored.Filled.VolumeOff, SnoreMedium, stringResource(R.string.tip_quiet))
+    }
+}
+
+@Composable
+private fun TipRow(icon: ImageVector, tint: Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconBadge(icon = icon, tint = tint, size = 32.dp)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -236,32 +269,20 @@ private fun greetingRes(): Int = when (Calendar.getInstance().get(Calendar.HOUR_
 }
 
 @Composable
-private fun HeroCard(
-    isTracking: Boolean,
-    elapsedSeconds: Long,
-    snoreCount: Int,
-    onStartClick: () -> Unit,
-    onViewLiveClick: () -> Unit
-) {
+private fun StartCard(onStartClick: () -> Unit) {
     val shape = MaterialTheme.shapes.extraLarge
-    val gradient = if (isTracking) {
-        Brush.linearGradient(listOf(Color(0xFF0F3D3A), Color(0xFF0B1F2E)))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF151541)))
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(gradient)
+            .background(Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF151541))))
             .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
             .drawBehind {
                 // Moon glow in the corner
                 val center = Offset(size.width * 0.88f, size.height * 0.12f)
                 drawCircle(
                     brush = Brush.radialGradient(
-                        listOf((if (isTracking) SleepTealAccent else MoonGlow).copy(alpha = 0.25f), Color.Transparent),
+                        listOf(MoonGlow.copy(alpha = 0.25f), Color.Transparent),
                         center = center,
                         radius = size.minDimension * 0.6f
                     ),
@@ -271,102 +292,42 @@ private fun HeroCard(
             }
             .padding(24.dp)
     ) {
-        AnimatedContent(
-            targetState = isTracking,
-            transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
-            label = "heroContent"
-        ) { tracking ->
-            if (tracking) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    LiveIndicator(text = stringResource(R.string.active_sleep_tracking))
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        formatClock(elapsedSeconds),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = Color.White
-                    )
-                    Text(
-                        "$snoreCount ${stringResource(R.string.events)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = onViewLiveClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF0F3D3A)
-                        ),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Icon(Icons.Default.GraphicEq, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.view_live_stop))
-                    }
-                }
-            } else {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Icon(
-                        Icons.Default.Bedtime,
-                        contentDescription = null,
-                        tint = MoonGlow,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        stringResource(R.string.ready_for_good_night),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.record_evaluate_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.72f)
-                    )
-                    Spacer(Modifier.height(22.dp))
-                    Button(
-                        onClick = onStartClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SleepTealAccent,
-                            contentColor = Color(0xFF042F2E)
-                        ),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.start_sleep), fontWeight = FontWeight.Bold)
-                    }
-                }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Icon(
+                Icons.Default.Bedtime,
+                contentDescription = null,
+                tint = MoonGlow,
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                stringResource(R.string.ready_for_good_night),
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.place_phone_instruction),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+            Spacer(Modifier.height(22.dp))
+            Button(
+                onClick = onStartClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SleepTealAccent,
+                    contentColor = Color(0xFF042F2E)
+                ),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.start_night_tracking), fontWeight = FontWeight.Bold)
             }
         }
-    }
-}
-
-@Composable
-private fun LiveIndicator(text: String) {
-    val transition = rememberInfiniteTransition(label = "live")
-    val alpha by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "liveAlpha"
-    )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(SleepTealAccent.copy(alpha = alpha))
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, color = SleepTealAccent)
     }
 }
 
