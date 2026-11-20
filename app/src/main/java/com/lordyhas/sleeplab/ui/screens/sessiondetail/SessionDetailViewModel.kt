@@ -7,7 +7,12 @@ import com.lordyhas.sleeplab.data.local.entity.NoiseSampleEntity
 import com.lordyhas.sleeplab.data.local.entity.SleepSessionEntity
 import com.lordyhas.sleeplab.data.local.entity.SnoreEventEntity
 import com.lordyhas.sleeplab.data.local.entity.FactorEntity
+import com.lordyhas.sleeplab.ui.util.NightTimeline
+import com.lordyhas.sleeplab.ui.util.NightTimelines
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import com.lordyhas.sleeplab.ui.util.SnoreEpisode
 import com.lordyhas.sleeplab.ui.util.SnoreEpisodes
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +36,11 @@ data class SessionDetailUiState(
     val snoreEventCount: Int = 0,
     /** Snores grouped into stretches of snoring, in time order. */
     val episodes: List<SnoreEpisode> = emptyList(),
+    /** The night cut into 10 s slices with their snoring band, for the chart and band totals. */
+    val timeline: NightTimeline? = null,
+    /** Neighbouring completed nights, for the previous / next arrows. */
+    val previousSessionId: Int? = null,
+    val nextSessionId: Int? = null,
     /** True once the night has been deleted; the screen should close. */
     val isDeleted: Boolean = false
 )
@@ -73,6 +83,16 @@ class SessionDetailViewModel(
         viewModelScope.launch {
             val noiseSamples = noiseSampleRepository.getSamplesForSession(sessionId)
             val snoreEvents = snoreEventRepository.getEventsForSessionDirect(sessionId)
+            val session = sessionRepository.getSessionByIdDirect(sessionId)
+            val timeline = session?.takeIf { it.endTime > it.startTime }?.let {
+                withContext(Dispatchers.Default) {
+                    NightTimelines.build(it.startTime, it.endTime, noiseSamples, snoreEvents, it.thresholdDb)
+                }
+            }
+            val nights = sessionRepository.getAllSessions().first()
+                .filter { it.endTime > 0 }
+                .sortedBy { it.startTime }
+            val index = nights.indexOfFirst { it.id == sessionId }
             val avgDb = noiseSampleRepository.getAverageDbForSession(sessionId) ?: 0f
             val maxDb = noiseSampleRepository.getMaxDbForSession(sessionId) ?: 0f
             val minDb = noiseSampleRepository.getMinDbForSession(sessionId) ?: 0f
@@ -84,7 +104,10 @@ class SessionDetailViewModel(
                     maxDb = maxDb,
                     minDb = minDb,
                     snoreEventCount = snoreEvents.size,
-                    episodes = SnoreEpisodes.group(snoreEvents)
+                    episodes = SnoreEpisodes.group(snoreEvents),
+                    timeline = timeline,
+                    previousSessionId = nights.getOrNull(index - 1)?.id?.takeIf { index > 0 },
+                    nextSessionId = nights.getOrNull(index + 1)?.id?.takeIf { index >= 0 }
                 )
             }
         }

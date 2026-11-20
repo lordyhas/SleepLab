@@ -10,6 +10,13 @@ import com.lordyhas.sleeplab.data.repository.FactorRepository
 import com.lordyhas.sleeplab.data.repository.SleepSessionRepository
 import com.lordyhas.sleeplab.data.repository.TreatmentRepository
 import com.lordyhas.sleeplab.ui.util.forStats
+import com.lordyhas.sleeplab.data.repository.NoiseSampleRepository
+import com.lordyhas.sleeplab.data.repository.SnoreEventRepository
+import com.lordyhas.sleeplab.ui.util.NightTimelines
+import com.lordyhas.sleeplab.ui.util.TimelineSlot
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -56,8 +63,26 @@ data class AnalyticsUiState(
 class AnalyticsViewModel(
     sessionRepository: SleepSessionRepository = SleepLabApp.instance.sleepSessionRepository,
     treatmentRepository: TreatmentRepository = SleepLabApp.instance.treatmentRepository,
-    factorRepository: FactorRepository = SleepLabApp.instance.factorRepository
+    factorRepository: FactorRepository = SleepLabApp.instance.factorRepository,
+    private val noiseSampleRepository: NoiseSampleRepository = SleepLabApp.instance.noiseSampleRepository,
+    private val snoreEventRepository: SnoreEventRepository = SleepLabApp.instance.snoreEventRepository
 ) : ViewModel() {
+
+    /** Mini timelines already built, by night: a finished night never changes. */
+    private val stripCache = ConcurrentHashMap<Int, List<TimelineSlot>>()
+
+    /** The night squeezed into [STRIP_BARS] bars for its row in the Nights list. */
+    suspend fun nightStrip(session: SleepSessionEntity): List<TimelineSlot> {
+        stripCache[session.id]?.let { return it }
+        val samples = noiseSampleRepository.getSamplesForSession(session.id)
+        val events = snoreEventRepository.getEventsForSessionDirect(session.id)
+        val strip = withContext(Dispatchers.Default) {
+            NightTimelines.build(session.startTime, session.endTime, samples, events, session.thresholdDb)
+                .buckets(STRIP_BARS)
+        }
+        stripCache[session.id] = strip
+        return strip
+    }
 
     val uiState: StateFlow<AnalyticsUiState> = combine(
         sessionRepository.getAllSessions(),
@@ -170,3 +195,5 @@ class AnalyticsViewModel(
         initialValue = AnalyticsUiState()
     )
 }
+
+private const val STRIP_BARS = 90

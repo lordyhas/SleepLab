@@ -56,7 +56,7 @@ object Insights {
     /** Minimum rated nights before the rating chart means anything. */
     const val MIN_RATED_NIGHTS = 5
 
-    private const val NIGHT_OFFSET_MS = 12L * 60 * 60 * 1000
+    const val NIGHT_OFFSET_MS = 12L * 60 * 60 * 1000
 
     /** yyyyMMdd of the evening the night belongs to. */
     fun nightDayKey(startTime: Long, zone: TimeZone = TimeZone.getDefault()): Int {
