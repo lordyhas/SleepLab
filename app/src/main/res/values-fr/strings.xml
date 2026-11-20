@@ -9,7 +9,6 @@
     <string name="last_night">Dernière Nuit</string>
     <string name="latest_night">Dernière nuit enregistrée</string>
     <string name="short_night_hint">Nuit courte · hors statistiques</string>
-    <string name="sound_level">Niveau sonore</string>
     <string name="no_night_recorded">Aucune nuit enregistrée pour le moment. Lancez votre premier suivi pour voir vos résultats !</string>
     <string name="sleep_title">Sommeil</string>
     <string name="snoring_title">Ronflements</string>
@@ -57,7 +56,6 @@
     <string name="save">Enregistrer</string>
     <string name="cancel">Annuler</string>
     <string name="detail_by_treatment">Détail par Traitement</string>
-    <string name="nights_history">Historique des Nuits</string>
     <string name="medical_impact">Impact Médical des Traitements</string>
     <string name="observed_reduction">Réduction observée des ronflements</string>
     <string name="data_stabilizing">Données en cours de stabilisation</string>
@@ -75,7 +73,6 @@
     <!-- Session Detail -->
     <string name="screen_session_detail">Détail de la Nuit</string>
     <string name="night_detail">Détail de la Nuit</string>
-    <string name="noise_timeline">Chronologie de la nuit</string>
     <string name="snore_threshold">Seuil de ronflement</string>
     <string name="avg_db">Moy. dB</string>
     <string name="max_db">Max dB</string>
@@ -128,7 +125,6 @@
     <string name="peak_label">Pic</string>
     <string name="duration_label">Durée</string>
     <string name="time_in_bed">Temps au lit</string>
-    <string name="threshold_line">Seuil %1$d dB</string>
     <string name="notif_channel_name">Suivi du sommeil et des ronflements</string>
     <string name="notif_channel_desc">Notification persistante pendant l\'analyse audio de la nuit</string>
     <string name="notif_title">Suivi du sommeil en cours</string>
@@ -254,7 +250,6 @@
     <string name="night_screen_desc">Après 30 s sans toucher le téléphone pendant une nuit, affiche une horloge sombre. Elle apparaît aussi par-dessus l’écran de verrouillage.</string>
     <string name="night_screen_recording">Enregistrement · %1$s</string>
     <string name="night_screen_open_app">Ouvrir SleepLab</string>
-    <string name="snoring_of_night">%1$s de ronflement · %2$s de la nuit</string>
     <string name="no_snoring_detected">Aucun ronflement détecté</string>
     <string name="episodes_title">Épisodes de ronflement (%1$d)</string>
     <string name="episodes_hint">Les ronflements à moins d’une minute d’écart sont regroupés.</string>
@@ -280,4 +275,15 @@
     <string name="screen_trends">Tendances</string>
     <string name="settings_title">Réglages</string>
     <string name="no_nights_title">Aucune nuit pour l’instant</string>
+    <string name="band_quiet">Calme</string>
+    <string name="band_light">Léger</string>
+    <string name="band_loud">Fort</string>
+    <string name="band_very_loud">Très fort</string>
+    <string name="time_snoring">Temps de ronflement</string>
+    <string name="chart_hint">Touchez ou glissez sur le graphique pour voir ce qui s’est passé à chaque moment de la nuit.</string>
+    <string name="quiet_at_time">Calme · niveau %1$d dB</string>
+    <string name="no_clip_for_episode">Pas d’enregistrement pour cet épisode. Activez les enregistrements pour écouter les prochains.</string>
+    <string name="previous_night">Nuit précédente</string>
+    <string name="next_night">Nuit suivante</string>
+    <string name="short_night_label">Courte</string>
 </resources>

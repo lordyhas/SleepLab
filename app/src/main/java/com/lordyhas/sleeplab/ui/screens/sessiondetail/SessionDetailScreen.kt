@@ -1,6 +1,16 @@
 package com.lordyhas.sleeplab.ui.screens.sessiondetail
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Bed
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.lordyhas.sleeplab.ui.components.color
+import com.lordyhas.sleeplab.ui.components.formatBandDuration
+import com.lordyhas.sleeplab.ui.util.NightTimeline
+import com.lordyhas.sleeplab.ui.util.NightTimelines
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyListScope
@@ -93,6 +103,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lordyhas.sleeplab.R
+import com.lordyhas.sleeplab.ui.screens.analytics.Insights
 import com.lordyhas.sleeplab.data.local.entity.NoiseSampleEntity
 import com.lordyhas.sleeplab.data.local.entity.SnoreEventEntity
 import com.lordyhas.sleeplab.ui.components.Dot
@@ -115,20 +126,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** dB levels are relative and a quiet room reads ~5–10, so the axis follows the night's own range. */
-internal fun chartDbRange(values: List<Float>): Pair<Float, Float> {
-    if (values.isEmpty()) return 0f to 40f
-    val low = (kotlin.math.floor((values.min() - 2f) / 10f) * 10f).coerceAtLeast(0f)
-    var high = kotlin.math.ceil((values.max() + 2f) / 10f) * 10f
-    if (high - low < 20f) high = low + 20f
-    return low to high
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SessionDetailScreen(
     sessionId: Int,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /** Open another night in place of this one (previous / next arrows). */
+    onOpenNight: (Int) -> Unit = {}
 ) {
     val factory = remember(sessionId) {
         object : ViewModelProvider.Factory {
@@ -150,8 +154,13 @@ fun SessionDetailScreen(
     var showAllSnores by rememberSaveable { mutableStateOf(false) }
     var editingFactors by rememberSaveable { mutableStateOf(false) }
     var showTechnical by rememberSaveable { mutableStateOf(false) }
+    var selectedTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     // The bar turns solid once content scrolls under it, so rows never mix with the title.
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // Named after the evening the night started, like the Nights list
+    val titleFormat = remember { SimpleDateFormat("EEE d MMM", Locale.getDefault()) }
 
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) onNavigateBack()
@@ -162,7 +171,13 @@ fun SessionDetailScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.night_detail), style = MaterialTheme.typography.titleLarge) },
+                title = {
+                    Text(
+                        uiState.session?.let { titleFormat.format(Date(it.startTime - Insights.NIGHT_OFFSET_MS)).replaceFirstChar { c -> c.titlecase() } }
+                            ?: stringResource(R.string.night_detail),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -170,6 +185,18 @@ fun SessionDetailScreen(
                 },
                 actions = {
                     if (uiState.session != null) {
+                        IconButton(
+                            onClick = { uiState.previousSessionId?.let(onOpenNight) },
+                            enabled = uiState.previousSessionId != null
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.previous_night))
+                        }
+                        IconButton(
+                            onClick = { uiState.nextSessionId?.let(onOpenNight) },
+                            enabled = uiState.nextSessionId != null
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.next_night))
+                        }
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete_night))
                         }
@@ -206,9 +233,10 @@ fun SessionDetailScreen(
             }
 
             else -> {
-                val dateFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
                 val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
                 val episodes = uiState.episodes
+                val timeline = uiState.timeline
+                val threshold = session.thresholdDb
 
                 val morningCard: LazyListScope.() -> Unit = {
                     item(key = "morning") {
@@ -228,6 +256,7 @@ fun SessionDetailScreen(
                 }
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 20.dp,
@@ -237,11 +266,59 @@ fun SessionDetailScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // The night first: the picture answers "how was it?" before any number.
+                    item(key = "chart") {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    timeFormat.format(Date(session.startTime)),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    timeFormat.format(Date(session.endTime)),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            if (timeline == null || timeline.slots.isEmpty()) {
+                                Box(ChartPlaceholderModifier, contentAlignment = Alignment.Center) {
+                                    Text(
+                                        stringResource(R.string.no_noise_data),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                NightIntensityChart(
+                                    timeline = timeline,
+                                    selectedTime = selectedTime,
+                                    onSelect = { selectedTime = it },
+                                    modifier = ChartPlaceholderModifier
+                                )
+                                Spacer(Modifier.height(14.dp))
+                                BandLegend(timeline)
+                                Spacer(Modifier.height(14.dp))
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                                MomentPanel(
+                                    selectedTime = selectedTime,
+                                    timeline = timeline,
+                                    episodes = episodes,
+                                    threshold = threshold,
+                                    timeFormat = timeFormat,
+                                    playingPath = clipPlayer.playingPath,
+                                    onPlay = clipPlayer::toggle
+                                )
+                            }
+                        }
+                    }
+
                     item(key = "summary") {
                         NightSummaryCard(
-                            date = dateFormat.format(Date(session.startTime)).replaceFirstChar { it.titlecase() },
-                            times = "${timeFormat.format(Date(session.startTime))} → ${timeFormat.format(Date(session.endTime))}",
                             session = session,
+                            snoringSeconds = timeline?.snoringSeconds ?: session.totalSnoreDurationSeconds.toLong(),
                             treatmentName = uiState.treatmentName
                         )
                     }
@@ -255,44 +332,6 @@ fun SessionDetailScreen(
                                 onEnable = { showClipsConsent = true },
                                 onDismiss = viewModel::dismissClipsNudge
                             )
-                        }
-                    }
-
-                    item(key = "timeline") {
-                        GlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.noise_timeline), style = MaterialTheme.typography.titleSmall)
-                            Spacer(Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                LegendItem(SleepTealAccent, stringResource(R.string.sound_level))
-                                LegendItem(SnoreHigh.copy(alpha = 0.6f), stringResource(R.string.snoring_title))
-                            }
-                            Spacer(Modifier.height(14.dp))
-                            if (uiState.noiseSamples.isEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(120.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        stringResource(R.string.no_noise_data),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            } else {
-                                NightTimelineChart(
-                                    noiseSamples = uiState.noiseSamples,
-                                    snoreEvents = uiState.snoreEvents,
-                                    episodes = episodes,
-                                    sessionStartTime = session.startTime,
-                                    sessionEndTime = session.endTime,
-                                    thresholdDb = session.thresholdDb,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp)
-                                )
-                            }
                         }
                     }
 
@@ -316,9 +355,15 @@ fun SessionDetailScreen(
                                     val clip = episode.clipPath
                                     EpisodeRow(
                                         episode = episode,
+                                        color = NightTimelines.bandFor(episode.peakDb, threshold).color(),
                                         timeRange = timeRange(timeFormat.format(Date(episode.startTime)), timeFormat.format(Date(episode.endTime))),
                                         isPlaying = clip != null && clipPlayer.playingPath == clip,
-                                        onPlay = { clip?.let(clipPlayer::toggle) }
+                                        onPlay = { clip?.let(clipPlayer::toggle) },
+                                        // Show it on the chart: select its loudest moment and scroll up
+                                        onClick = {
+                                            selectedTime = episode.events.maxBy { it.amplitude }.timestamp
+                                            scope.launch { listState.animateScrollToItem(0) }
+                                        }
                                     )
                                 }
                                 HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
@@ -336,6 +381,7 @@ fun SessionDetailScreen(
                                         HorizontalDivider(color = Color.White.copy(alpha = 0.04f))
                                         SnoreEventRow(
                                             event = event,
+                                            color = NightTimelines.bandFor(event.amplitude, threshold).color(),
                                             time = timeFormat.format(Date(event.timestamp)),
                                             isPlaying = event.clipPath != null && clipPlayer.playingPath == event.clipPath,
                                             onPlay = { event.clipPath?.let(clipPlayer::toggle) }
@@ -460,51 +506,114 @@ fun SessionDetailScreen(
     }
 }
 
-/** Score, verdict and how much of the night was spent snoring: the answer to "how was my night?". */
+/**
+ * What happened at the moment picked on the chart: the snoring episode there (with ▶ when a clip
+ * was kept), or that the room was quiet. Before any pick, a hint that the chart can be explored.
+ */
+@Composable
+private fun MomentPanel(
+    selectedTime: Long?,
+    timeline: NightTimeline,
+    episodes: List<SnoreEpisode>,
+    threshold: Float,
+    timeFormat: SimpleDateFormat,
+    playingPath: String?,
+    onPlay: (String) -> Unit
+) {
+    if (selectedTime == null) {
+        Text(
+            stringResource(R.string.chart_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 12.dp)
+        )
+        return
+    }
+    // The episode under the finger, or one within 2 min so short ones are easy to hit
+    val episode = episodes.firstOrNull { selectedTime in it.startTime..it.endTime }
+        ?: episodes.minByOrNull { minOf(kotlin.math.abs(it.startTime - selectedTime), kotlin.math.abs(it.endTime - selectedTime)) }
+            ?.takeIf { minOf(kotlin.math.abs(it.startTime - selectedTime), kotlin.math.abs(it.endTime - selectedTime)) < 2 * 60_000L }
+
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Text(
+            timeFormat.format(Date(selectedTime)),
+            style = MaterialTheme.typography.titleMedium
+        )
+        if (episode != null) {
+            val clip = episode.clipPath
+            EpisodeRow(
+                episode = episode,
+                color = NightTimelines.bandFor(episode.peakDb, threshold).color(),
+                timeRange = timeRange(timeFormat.format(Date(episode.startTime)), timeFormat.format(Date(episode.endTime))),
+                isPlaying = clip != null && playingPath == clip,
+                onPlay = { clip?.let(onPlay) }
+            )
+            if (clip == null) {
+                Text(
+                    stringResource(R.string.no_clip_for_episode),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        } else {
+            val slot = timeline.slots.firstOrNull { selectedTime < it.endTime }
+            Text(
+                stringResource(R.string.quiet_at_time, (slot?.level ?: 0f).toInt()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+    }
+}
+
+/** Time in bed, time snoring and the score: the numbers behind the chart. */
 @Composable
 private fun NightSummaryCard(
-    date: String,
-    times: String,
     session: SleepSessionEntity,
+    snoringSeconds: Long,
     treatmentName: String?
 ) {
     val display = session.scoreDisplay()
     val score = display.value
     val nightSeconds = sessionDurationSeconds(session.startTime, session.endTime)
-    val snoreSeconds = session.totalSnoreDurationSeconds.toLong()
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(date, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(4.dp))
-                Text(times, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(formatDuration(nightSeconds), style = MaterialTheme.typography.headlineSmall)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SummaryLine(
+                    icon = Icons.Default.Bed,
+                    tint = SleepIndigoLight,
+                    label = stringResource(R.string.time_in_bed),
+                    value = formatDuration(nightSeconds)
+                )
+                SummaryLine(
+                    icon = Icons.Default.GraphicEq,
+                    tint = SnoreMedium,
+                    label = stringResource(R.string.time_snoring),
+                    value = if (snoringSeconds == 0L) stringResource(R.string.no_snoring_detected)
+                    else "${formatBandDuration(snoringSeconds)} · ${nightShare(snoringSeconds, nightSeconds)}"
+                )
             }
-            GaugeRing(
-                progress = score / 100f,
-                color = display.color,
-                strokeWidth = 8.dp,
-                animationMillis = 900,
-                modifier = Modifier.size(96.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${score.toInt()}", style = MaterialTheme.typography.headlineSmall)
-                    Text(
-                        stringResource(display.labelRes),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                GaugeRing(
+                    progress = score / 100f,
+                    color = display.color,
+                    strokeWidth = 10.dp,
+                    animationMillis = 900,
+                    modifier = Modifier.size(104.dp)
+                ) {
+                    Text("${score.toInt()}", style = MaterialTheme.typography.displaySmall)
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(display.labelRes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         Spacer(Modifier.height(14.dp))
-        Text(
-            if (snoreSeconds == 0L) stringResource(R.string.no_snoring_detected)
-            else stringResource(R.string.snoring_of_night, formatDuration(snoreSeconds), nightShare(snoreSeconds, nightSeconds)),
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill(text = stringResource(display.levelRes), color = display.color)
             Pill(
@@ -512,6 +621,18 @@ private fun NightSummaryCard(
                 color = if (treatmentName != null) SleepIndigoLight else MaterialTheme.colorScheme.onSurfaceVariant,
                 icon = Icons.Default.MedicalServices
             )
+        }
+    }
+}
+
+@Composable
+private fun SummaryLine(icon: ImageVector, tint: Color, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconBadge(icon = icon, tint = tint, size = 40.dp)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -642,12 +763,19 @@ private fun TechnicalDetailsCard(
 }
 
 @Composable
-private fun EpisodeRow(episode: SnoreEpisode, timeRange: String, isPlaying: Boolean, onPlay: () -> Unit) {
-    val color = snoreLevelColor(episode.peakDb)
+private fun EpisodeRow(
+    episode: SnoreEpisode,
+    color: Color,
+    timeRange: String,
+    isPlaying: Boolean,
+    onPlay: () -> Unit,
+    onClick: (() -> Unit)? = null
+) {
     val hasClip = episode.clipPath != null
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = if (hasClip) 6.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -757,17 +885,7 @@ private fun NoteDialog(initial: String, onDismiss: () -> Unit, onSave: (String) 
 }
 
 @Composable
-private fun LegendItem(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Dot(color = color)
-        Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun SnoreEventRow(event: SnoreEventEntity, time: String, isPlaying: Boolean, onPlay: () -> Unit) {
-    val color = snoreLevelColor(event.amplitude)
+private fun SnoreEventRow(event: SnoreEventEntity, color: Color, time: String, isPlaying: Boolean, onPlay: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -807,147 +925,5 @@ private fun SnoreEventRow(event: SnoreEventEntity, time: String, isPlaying: Bool
             modifier = Modifier.width(56.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.End
         )
-    }
-}
-
-@Composable
-private fun NightTimelineChart(
-    noiseSamples: List<NoiseSampleEntity>,
-    snoreEvents: List<SnoreEventEntity>,
-    episodes: List<SnoreEpisode>,
-    sessionStartTime: Long,
-    sessionEndTime: Long,
-    thresholdDb: Float,
-    modifier: Modifier = Modifier
-) {
-    if (noiseSamples.isEmpty() || sessionEndTime <= sessionStartTime) return
-
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val textMeasurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    // Only samples where the threshold changed, as (timestamp, threshold)
-    val thresholdSteps = remember(noiseSamples) {
-        noiseSamples.mapNotNull { s -> s.thresholdDb?.let { s.timestamp to it } }
-            .fold(mutableListOf<Pair<Long, Float>>()) { acc, step ->
-                if (acc.lastOrNull()?.second != step.second) acc += step
-                acc
-            }
-    }
-    val finalThreshold = thresholdSteps.lastOrNull()?.second ?: thresholdDb
-    val thresholdLabel = stringResource(R.string.threshold_line, finalThreshold.toInt())
-    val gridColor = Color.White.copy(alpha = 0.07f)
-    val (chartMinDb, chartMaxDb) = remember(noiseSamples, snoreEvents, thresholdDb) {
-        chartDbRange(
-            noiseSamples.map { it.decibelLevel } + snoreEvents.map { it.amplitude } +
-                thresholdSteps.map { it.second } + thresholdDb
-        )
-    }
-    val gridStep = if (chartMaxDb - chartMinDb > 40f) 20f else 10f
-
-    Canvas(modifier = modifier) {
-        val axisWidth = 26.dp.toPx()
-        val bottomLabelHeight = 18.dp.toPx()
-        val left = axisWidth
-        val width = size.width - axisWidth
-        val height = size.height - bottomLabelHeight
-        val durationMs = (sessionEndTime - sessionStartTime).toFloat()
-
-        fun xFor(timestamp: Long) = left + ((timestamp - sessionStartTime) / durationMs).coerceIn(0f, 1f) * width
-        fun yFor(db: Float) = height - ((db - chartMinDb) / (chartMaxDb - chartMinDb)).coerceIn(0f, 1f) * height
-
-        // Y gridlines (the bottom one is the axis itself)
-        generateSequence(chartMinDb + gridStep) { it + gridStep }.takeWhile { it <= chartMaxDb }.forEach { db ->
-            val y = yFor(db)
-            drawLine(gridColor, Offset(left, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
-            val label = textMeasurer.measure("${db.toInt()}", labelStyle)
-            drawText(label, topLeft = Offset(0f, (y - label.size.height / 2f).coerceAtLeast(0f)))
-        }
-
-        // Snoring episodes as translucent bands
-        episodes.forEach { episode ->
-            val x = xFor(episode.startTime)
-            val bandWidth = (episode.durationMs / durationMs * width).coerceAtLeast(2.dp.toPx())
-            drawRect(
-                color = SnoreHigh.copy(alpha = 0.22f),
-                topLeft = Offset(x, 0f),
-                size = Size(bandWidth, height)
-            )
-        }
-
-        // Threshold: stepped when the adaptive floor moved it during the night, flat otherwise
-        val thresholdPath = Path()
-        if (thresholdSteps.isEmpty()) {
-            thresholdPath.moveTo(left, yFor(thresholdDb))
-            thresholdPath.lineTo(size.width, yFor(thresholdDb))
-        } else {
-            var y = yFor(thresholdSteps.first().second)
-            thresholdPath.moveTo(left, y)
-            thresholdSteps.forEach { (timestamp, value) ->
-                val x = xFor(timestamp)
-                thresholdPath.lineTo(x, y)
-                y = yFor(value)
-                thresholdPath.lineTo(x, y)
-            }
-            thresholdPath.lineTo(size.width, y)
-        }
-        drawPath(
-            path = thresholdPath,
-            color = Color.White.copy(alpha = 0.35f),
-            style = Stroke(
-                width = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
-            )
-        )
-        val thresholdY = yFor(finalThreshold)
-        val thresholdText = textMeasurer.measure(thresholdLabel, labelStyle)
-        drawText(
-            thresholdText,
-            topLeft = Offset(size.width - thresholdText.size.width, thresholdY - thresholdText.size.height - 2.dp.toPx())
-        )
-
-        // Noise line + gradient fill
-        val path = Path()
-        val firstX = xFor(noiseSamples.first().timestamp)
-        var lastX = firstX
-        noiseSamples.forEachIndexed { index, sample ->
-            val x = xFor(sample.timestamp)
-            val y = yFor(sample.decibelLevel)
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            lastX = x
-        }
-        val fillPath = Path().apply {
-            addPath(path)
-            lineTo(lastX, height)
-            lineTo(firstX, height)
-            close()
-        }
-        drawPath(
-            path = fillPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(SleepTealAccent.copy(alpha = 0.35f), Color.Transparent),
-                startY = 0f,
-                endY = height
-            )
-        )
-        drawPath(
-            path = path,
-            color = SleepTealAccent,
-            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-
-        // X labels: start, middle, end
-        listOf(
-            sessionStartTime,
-            sessionStartTime + (sessionEndTime - sessionStartTime) / 2,
-            sessionEndTime
-        ).forEachIndexed { index, ts ->
-            val label = textMeasurer.measure(timeFormat.format(Date(ts)), labelStyle)
-            val x = when (index) {
-                0 -> left
-                2 -> size.width - label.size.width
-                else -> xFor(ts) - label.size.width / 2f
-            }
-            drawText(label, topLeft = Offset(x, height + 4.dp.toPx()))
-        }
     }
 }

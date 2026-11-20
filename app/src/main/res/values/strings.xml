@@ -8,7 +8,6 @@
     <string name="last_night">Last Night</string>
     <string name="latest_night">Latest Night</string>
     <string name="short_night_hint">Short night · not in stats</string>
-    <string name="sound_level">Sound level</string>
     <string name="no_night_recorded">No night recorded yet. Start your first tracking to see your results!</string>
     <string name="sleep_title">Sleep</string>
     <string name="snoring_title">Snoring</string>
@@ -55,7 +54,6 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="detail_by_treatment">Detail by Treatment</string>
-    <string name="nights_history">Nights History</string>
     <string name="medical_impact">Medical Impact of Treatments</string>
     <string name="observed_reduction">Observed reduction in snoring</string>
     <string name="data_stabilizing">Data stabilizing</string>
@@ -73,7 +71,6 @@
     <!-- Session Detail -->
     <string name="screen_session_detail">Night Detail</string>
     <string name="night_detail">Night Detail</string>
-    <string name="noise_timeline">Night timeline</string>
     <string name="snore_threshold">Snore threshold</string>
     <string name="avg_db">Avg dB</string>
     <string name="max_db">Max dB</string>
@@ -125,7 +122,6 @@
     <string name="peak_label">Peak</string>
     <string name="duration_label">Duration</string>
     <string name="time_in_bed">Time in bed</string>
-    <string name="threshold_line">Threshold %1$d dB</string>
     <string name="notif_channel_name">Sleep &amp; snore tracking</string>
     <string name="notif_channel_desc">Persistent notification while audio is analysed overnight</string>
     <string name="notif_title">Sleep tracking in progress</string>
@@ -250,7 +246,6 @@
     <string name="night_screen_desc">After 30 s without touching the phone during a night, show a dark clock. It also appears over the lock screen.</string>
     <string name="night_screen_recording">Recording · %1$s</string>
     <string name="night_screen_open_app">Open SleepLab</string>
-    <string name="snoring_of_night">%1$s of snoring · %2$s of the night</string>
     <string name="no_snoring_detected">No snoring detected</string>
     <string name="episodes_title">Snoring episodes (%1$d)</string>
     <string name="episodes_hint">Snores less than a minute apart are grouped together.</string>
@@ -275,4 +270,15 @@
     <string name="screen_trends">Trends</string>
     <string name="settings_title">Settings</string>
     <string name="no_nights_title">No nights yet</string>
+    <string name="band_quiet">Quiet</string>
+    <string name="band_light">Light</string>
+    <string name="band_loud">Loud</string>
+    <string name="band_very_loud">Very loud</string>
+    <string name="time_snoring">Time snoring</string>
+    <string name="chart_hint">Touch or slide along the chart to see what happened at any moment of the night.</string>
+    <string name="quiet_at_time">Quiet · level %1$d dB</string>
+    <string name="no_clip_for_episode">No recording for this episode. Turn on snore recordings to hear the next ones.</string>
+    <string name="previous_night">Previous night</string>
+    <string name="next_night">Next night</string>
+    <string name="short_night_label">Short</string>
 </resources>

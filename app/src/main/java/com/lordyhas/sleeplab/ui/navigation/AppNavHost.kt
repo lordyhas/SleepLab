@@ -179,7 +179,10 @@ fun AppNavHost(
                 }
 
                 composable(Screen.Trends.route) {
-                    AnalyticsScreen(onManageTreatments = ::openTreatments)
+                    AnalyticsScreen(
+                        onManageTreatments = ::openTreatments,
+                        onNavigateToSessionDetail = ::openSessionDetail
+                    )
                 }
 
                 composable(Screen.Settings.route, enterTransition = { pushEnter() }, popExitTransition = { pushPopExit() }) {
@@ -199,7 +202,13 @@ fun AppNavHost(
                     val sessionId = backStackEntry.arguments?.getInt("sessionId") ?: return@composable
                     SessionDetailScreen(
                         sessionId = sessionId,
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        // Swap nights in place so Back still returns to the list
+                        onOpenNight = { id ->
+                            navController.navigate(Screen.SessionDetail.createRoute(id)) {
+                                popUpTo(Screen.SessionDetail.route) { inclusive = true }
+                            }
+                        }
                     )
                 }
             }

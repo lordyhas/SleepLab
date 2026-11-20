@@ -91,7 +91,8 @@ private const val NIGHT_LABEL_OFFSET_MS = 12L * 60 * 60 * 1000
 @Composable
 fun AnalyticsScreen(
     viewModel: AnalyticsViewModel = viewModel(),
-    onManageTreatments: () -> Unit = {}
+    onManageTreatments: () -> Unit = {},
+    onNavigateToSessionDetail: (Int) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var trendPeriod by rememberSaveable { mutableStateOf(TrendPeriod.NIGHTS) }
@@ -183,6 +184,14 @@ fun AnalyticsScreen(
         }
 
         if (uiState.sessionsWithTreatments.isNotEmpty()) {
+            item {
+                CalendarCard(
+                    minutesByDay = uiState.minutesByDay,
+                    sessionIdByDay = uiState.sessionIdByDay,
+                    onNightClick = onNavigateToSessionDetail
+                )
+            }
+
             item { FactorImpactCard(impacts = uiState.factorImpacts) }
 
             item { RatingCard(breakdown = uiState.ratingBreakdown, ratedNights = uiState.ratedNights) }
@@ -472,69 +481,5 @@ private fun TreatmentPerformanceCard(impact: TreatmentImpact, maxMinutes: Float)
             fraction = if (maxMinutes > 0f) impact.averageSnoreMinutes / maxMinutes else 0f,
             color = color
         )
-    }
-}
-
-@Composable
-internal fun SessionHistoryRow(
-    item: SessionWithTreatment,
-    onClick: () -> Unit
-) {
-    val dateFormat = remember { SimpleDateFormat("EEE d MMM · HH:mm", Locale.getDefault()) }
-    val snoreMin = item.session.totalSnoreDurationSeconds / 60
-    val severity = when {
-        item.session.isShortNight -> MaterialTheme.colorScheme.outline
-        snoreMin > 30 -> SnoreHigh
-        snoreMin > 10 -> SnoreMedium
-        else -> SnoreLow
-    }
-
-    GlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(width = 4.dp, height = 36.dp)
-                    .clip(CircleShape)
-                    .background(severity)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    dateFormat.format(Date(item.session.startTime)).replaceFirstChar { it.titlecase() },
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (item.session.isShortNight) stringResource(R.string.short_night_hint)
-                    else item.treatmentName ?: stringResource(R.string.no_treatment),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (item.treatmentName != null && !item.session.isShortNight) SleepTealAccent
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    stringResource(R.string.snore_minutes_short, snoreMin),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = severity
-                )
-                Text(
-                    formatDuration(sessionDurationSeconds(item.session.startTime, item.session.endTime)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-        }
     }
 }
