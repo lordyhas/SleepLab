@@ -48,6 +48,6 @@ class ClipBudget(
 
     companion object {
         const val DEFAULT_MAX_CLIPS = 30
-        const val DEFAULT_MIN_SPACING_MS = 30_000L
+        const val DEFAULT_MIN_SPACING_MS = 60_000L
     }
 }

@@ -97,6 +97,8 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+    // On-device YAMNet sound classifier (snore detection)
+    implementation(libs.litert)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

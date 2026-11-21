@@ -12,6 +12,14 @@ import com.lordyhas.sleeplab.service.detection.AudioFeatureExtractor
 import com.lordyhas.sleeplab.service.detection.SnoreBurst
 import com.lordyhas.sleeplab.service.detection.SnoreDetector
 import com.lordyhas.sleeplab.service.detection.SoundClass
+import com.lordyhas.sleeplab.service.detection.DetectionLog
+import com.lordyhas.sleeplab.service.detection.YamnetClassifier
+import com.lordyhas.sleeplab.service.detection.YamnetSnoreTracker
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,8 +31,14 @@ import kotlinx.coroutines.launch
  * Reads the microphone and turns it into snore events.
  *
  * Audio is analysed in fixed 100 ms frames: [AudioFeatureExtractor] measures level and low-band
- * ratio, [NoiseFloorCalibrator] (optional) measures the room first, [SnoreDetector] finds rhythmic
- * low-pitched bursts, and [AdaptiveFloor] keeps the threshold following the room when calibrated.
+ * ratio, [NoiseFloorCalibrator] (optional) measures the room first, and [AdaptiveFloor] keeps the
+ * threshold following the room when calibrated.
+ *
+ * Snores come from one of two detectors:
+ * - with [yamnet], every 0.5 s the last second of audio goes through the YAMNet classifier (on its
+ *   own thread) and [YamnetSnoreTracker] turns its "Snoring" score into bursts. There is no level
+ *   gate: the model hears everything. The rules detector still runs, but only for [detectionLog].
+ * - without it, [SnoreDetector] finds rhythmic low-pitched bursts (the original rules).
  * Raw audio never leaves this class except as short clips around confirmed snores, and only when
  * [captureClips] is on (opt-in); nothing is sent anywhere.
  */
@@ -46,7 +60,11 @@ class AudioAnalyzer(
     /** Time to let the user fall asleep: calibration and detection only begin after it. */
     private val startDelayMs: Long = 0L,
     /** The microphone stopped delivering audio mid-night and could not be reopened; analysis has ended. */
-    private val onMicrophoneLost: () -> Unit = {}
+    private val onMicrophoneLost: () -> Unit = {},
+    /** When set, YAMNet decides what is snoring; the analyzer closes it on [stop]. */
+    private val yamnet: YamnetClassifier? = null,
+    /** Per-night numbers for checking the detection afterwards; closed on [stop]. */
+    private val detectionLog: DetectionLog? = null
 ) {
 
     private var audioRecord: AudioRecord? = null
@@ -61,6 +79,21 @@ class AudioAnalyzer(
     private val ring = if (captureClips) PcmRingBuffer(SAMPLE_RATE * CLIP_BUFFER_SECONDS) else null
     private val clipRequests = mutableListOf<ClipRequest>()
 
+    // YAMNet: the last second of audio as floats, classified on a single background thread so a
+    // slow inference never makes the microphone overrun. Results come back in order through
+    // [yamnetResults] and are handled on the audio thread.
+    private class WindowResult(val hopStartMs: Long, val snoringScore: Float, val peakDb: Float)
+    private val yamnetWindow = FloatArray(YamnetClassifier.WINDOW_SAMPLES)
+    private var yamnetWritePos = 0
+    private val yamnetResults = ConcurrentLinkedQueue<WindowResult>()
+    private val yamnetTracker = YamnetSnoreTracker(hopMs = YAMNET_HOP_FRAMES * FRAME_MS)
+    private val recentFrameDb = ArrayDeque<Float>()
+    private val worker = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS,
+        ArrayBlockingQueue(8),
+        ThreadPoolExecutor.DiscardOldestPolicy()
+    )
+
     companion object {
         private const val TAG = "AudioAnalyzer"
         private const val SAMPLE_RATE = 16000
@@ -69,10 +102,14 @@ class AudioAnalyzer(
         private const val FRAME_MS = 100L
         private const val FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS / 1000).toInt()
 
-        /** Long enough to reach back to the first of the 3 bursts that confirm a rhythm. */
-        const val CLIP_BUFFER_SECONDS = 25
-        private const val CLIP_PRE_ROLL_MS = 1_000L
-        private const val CLIP_POST_ROLL_MS = 1_500L
+        /** Room for a [CLIP_LENGTH_MS] clip centred on a snore confirmed a few seconds late. */
+        const val CLIP_BUFFER_SECONDS = 45
+        /** Long enough to hear what was going on around the snore, not just one breath. */
+        private const val CLIP_LENGTH_MS = 30_000L
+
+        /** YAMNet runs every 5 frames (0.5 s) on the last 0.975 s of audio. */
+        private const val YAMNET_HOP_FRAMES = 5
+        private const val YAMNET_WINDOW_MS = 975L
 
         /** No audio at all for this long means the stream is dead, not just slow. */
         private const val STALL_TIMEOUT_MS = 5_000L
@@ -209,6 +246,14 @@ class AudioAnalyzer(
                 buffer.write(frame, 0, FRAME_SAMPLES)
                 deliverReadyClips(buffer)
             }
+            if (yamnet != null) {
+                for (i in 0 until FRAME_SAMPLES) {
+                    yamnetWindow[yamnetWritePos] = frame[i] / 32768f
+                    yamnetWritePos = (yamnetWritePos + 1) % yamnetWindow.size
+                }
+                recentFrameDb.addLast(features.db)
+                while (recentFrameDb.size > 10) recentFrameDb.removeFirst()
+            }
 
             if (timestamp < detectionStartsAt) {
                 onFrame(features.db, SoundClass.QUIET) // live level only, nothing detected yet
@@ -229,7 +274,28 @@ class AudioAnalyzer(
                 continue // no snore detection while measuring the room
             }
 
-            onFrame(features.db, detector.classify(features))
+            if (yamnet != null && framesProcessed >= 10 && framesProcessed % YAMNET_HOP_FRAMES == 0L) {
+                submitWindow(timestamp + FRAME_MS)
+            }
+            var result = yamnetResults.poll()
+            while (result != null) {
+                yamnetTracker.onWindow(result.hopStartMs, result.snoringScore, result.peakDb).forEach { burst ->
+                    detectionLog?.burst('Y', burst)
+                    reportSnore(burst, streamStart + gapMs)
+                }
+                result = yamnetResults.poll()
+            }
+
+            val rulesClass = detector.classify(features)
+            onFrame(
+                features.db,
+                when {
+                    yamnet == null -> rulesClass
+                    yamnetTracker.isSnoring -> SoundClass.SNORE_LIKE
+                    rulesClass == SoundClass.QUIET -> SoundClass.QUIET
+                    else -> SoundClass.NOISE
+                }
+            )
 
             adaptiveFloor?.let { floor ->
                 if (floor.onFrame(features.db, FRAME_MS)) {
@@ -239,17 +305,50 @@ class AudioAnalyzer(
             }
 
             detector.onFrame(timestamp, FRAME_MS, features).forEach { burst ->
-                onSnoreDetected(burst, detector.thresholdDb)
-                if (ring != null) {
-                    val audioStart = streamStart + gapMs
-                    fun sampleAt(timeMs: Long) = (timeMs - audioStart) * SAMPLE_RATE / 1000
-                    clipRequests += ClipRequest(
-                        burst = burst,
-                        fromSample = sampleAt(burst.startMs - CLIP_PRE_ROLL_MS).coerceAtLeast(0),
-                        toSample = sampleAt(burst.startMs + burst.durationMs + CLIP_POST_ROLL_MS)
-                    )
-                }
+                detectionLog?.burst('R', burst)
+                if (yamnet == null) reportSnore(burst, streamStart + gapMs)
             }
+        }
+    }
+
+    private fun reportSnore(burst: SnoreBurst, audioStart: Long) {
+        onSnoreDetected(burst, detector.thresholdDb)
+        if (ring != null) {
+            fun sampleAt(timeMs: Long) = (timeMs - audioStart) * SAMPLE_RATE / 1000
+            val centre = burst.startMs + burst.durationMs / 2
+            clipRequests += ClipRequest(
+                burst = burst,
+                fromSample = sampleAt(centre - CLIP_LENGTH_MS / 2).coerceAtLeast(0),
+                toSample = sampleAt(centre + CLIP_LENGTH_MS / 2)
+            )
+        }
+    }
+
+    /** Sends the last 0.975 s (ending at [windowEndMs]) to YAMNet on the worker thread. */
+    private fun submitWindow(windowEndMs: Long) {
+        val model = yamnet ?: return
+        // Unroll the circular buffer so the window is in time order.
+        val window = FloatArray(yamnetWindow.size) { i -> yamnetWindow[(yamnetWritePos + i) % yamnetWindow.size] }
+        val peakDb = recentFrameDb.maxOrNull() ?: 0f
+        val windowStart = windowEndMs - YAMNET_WINDOW_MS
+        val hopMs = YAMNET_HOP_FRAMES * FRAME_MS
+        // Each window accounts for the hop at its centre, so overlapping windows don't double count.
+        val hopStart = windowStart + YAMNET_WINDOW_MS / 2 - hopMs / 2
+        try {
+            worker.execute {
+                if (!isRecording) return@execute
+                val began = SystemClock.elapsedRealtime()
+                val scores = try {
+                    model.classify(window)
+                } catch (e: Exception) {
+                    Log.e(TAG, "YAMNet inference failed", e)
+                    return@execute
+                }
+                detectionLog?.window(windowStart, peakDb, scores, SystemClock.elapsedRealtime() - began)
+                yamnetResults.add(WindowResult(hopStart, scores[YamnetClassifier.CLASS_SNORING], peakDb))
+            }
+        } catch (_: RejectedExecutionException) {
+            // Stopping
         }
     }
 
@@ -270,6 +369,16 @@ class AudioAnalyzer(
         isRecording = false
         recordingJob?.cancel()
         recordingJob = null
+        // Close the model and the log on the worker, after any inference still running.
+        try {
+            worker.execute {
+                yamnet?.close()
+                detectionLog?.close()
+            }
+        } catch (_: RejectedExecutionException) {
+            // Already stopped
+        }
+        worker.shutdown()
 
         try {
             audioRecord?.apply {

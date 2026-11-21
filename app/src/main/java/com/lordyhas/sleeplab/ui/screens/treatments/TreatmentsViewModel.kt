@@ -32,6 +32,7 @@ class TreatmentsViewModel(
     val autoCalibrate: StateFlow<Boolean> = settingsRepository.autoCalibrate
 
     val clipsEnabled: StateFlow<Boolean> = settingsRepository.clipsEnabled
+    val yamnetEnabled: StateFlow<Boolean> = settingsRepository.yamnetEnabled
     val clipRetentionDays: StateFlow<Int> = settingsRepository.clipRetentionDays
 
     private val clipRepository = SleepLabApp.instance.clipRepository
@@ -47,6 +48,7 @@ class TreatmentsViewModel(
     }
 
     fun setClipsEnabled(enabled: Boolean) = settingsRepository.setClipsEnabled(enabled)
+    fun setYamnetEnabled(enabled: Boolean) = settingsRepository.setYamnetEnabled(enabled)
 
     fun setClipRetentionDays(days: Int) {
         settingsRepository.setClipRetentionDays(days)

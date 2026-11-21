@@ -21,7 +21,10 @@ import com.lordyhas.sleeplab.service.bedtime.BedtimeSchedule
 import com.lordyhas.sleeplab.service.bedtime.SleepTrackingTileService
 import com.lordyhas.sleeplab.service.clips.AacClipEncoder
 import com.lordyhas.sleeplab.service.clips.ClipBudget
+import com.lordyhas.sleeplab.service.detection.DetectionLog
+import com.lordyhas.sleeplab.service.detection.YamnetClassifier
 import com.lordyhas.sleeplab.service.detection.SnoreBurst
+import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.util.concurrent.ConcurrentHashMap
@@ -231,6 +234,12 @@ class SleepTrackingService : Service() {
                 )
             }
 
+            // YAMNet when enabled and loadable, otherwise the rules; the log records which one ran.
+            val yamnet = if (settings.yamnetEnabled.value) YamnetClassifier.create(this@SleepTrackingService) else null
+            val detectionLog = DetectionLog(File(File(filesDir, DetectionLog.DIR), "night_$sessionId.csv")).apply {
+                header(if (yamnet != null) "yamnet" else "rules", thresholdDb)
+            }
+
             // Start Audio Analyzer
             val analyzer = AudioAnalyzer(
                 scope = serviceScope,
@@ -258,7 +267,9 @@ class SleepTrackingService : Service() {
                 },
                 onMicrophoneLost = {
                     serviceScope.launch { failTracking() }
-                }
+                },
+                yamnet = yamnet,
+                detectionLog = detectionLog
             )
             audioAnalyzer = analyzer
             if (!analyzer.start()) {
