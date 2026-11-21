@@ -281,4 +281,7 @@
     <string name="previous_night">Previous night</string>
     <string name="next_night">Next night</string>
     <string name="short_night_label">Short</string>
+    <string name="yamnet_title">AI snore detection (YAMNet)</string>
+    <string name="yamnet_desc_on">A sound-recognition model listens all night and tells snoring apart from coughs, the bed, speech and other noises. Runs on the phone; nothing is sent. Best with the phone charging.</string>
+    <string name="yamnet_desc_off">Off: snoring is detected from loud, low-pitched sounds repeating at breathing pace.</string>
 </resources>

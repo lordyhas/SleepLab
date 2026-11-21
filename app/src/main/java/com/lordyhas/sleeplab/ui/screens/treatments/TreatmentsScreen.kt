@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -86,6 +87,7 @@ fun SettingsScreen(
     val thresholdDb by viewModel.thresholdDb.collectAsState()
     val autoCalibrate by viewModel.autoCalibrate.collectAsState()
     val clipsEnabled by viewModel.clipsEnabled.collectAsState()
+    val yamnetEnabled by viewModel.yamnetEnabled.collectAsState()
     val clipRetentionDays by viewModel.clipRetentionDays.collectAsState()
     val clipStorageBytes by viewModel.clipStorageBytes.collectAsState()
     val startDelayMinutes by viewModel.startDelayMinutes.collectAsState()
@@ -99,6 +101,8 @@ fun SettingsScreen(
         item {
             SectionHeader(stringResource(R.string.detection_section))
             Spacer(Modifier.height(4.dp))
+            YamnetCard(enabled = yamnetEnabled, onEnabledChange = viewModel::setYamnetEnabled)
+            Spacer(Modifier.height(14.dp))
             CalibrationCard(
                 autoCalibrate = autoCalibrate,
                 onAutoCalibrateChange = viewModel::setAutoCalibrate,
@@ -235,6 +239,26 @@ fun TreatmentsScreen(
                 TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
+    }
+}
+
+@Composable
+private fun YamnetCard(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon = Icons.Default.AutoAwesome, tint = SleepTealAccent)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.yamnet_title), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(if (enabled) R.string.yamnet_desc_on else R.string.yamnet_desc_off),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+        }
     }
 }
 

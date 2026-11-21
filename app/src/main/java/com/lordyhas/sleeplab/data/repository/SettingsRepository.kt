@@ -21,6 +21,10 @@ class SettingsRepository(context: Context) {
     /** Measure the room's noise at the start of each night and derive the threshold from it. */
     val autoCalibrate: StateFlow<Boolean> = _autoCalibrate.asStateFlow()
 
+    private val _yamnetEnabled = MutableStateFlow(prefs.getBoolean(KEY_YAMNET_ENABLED, true))
+    /** Detect snoring with the YAMNet sound classifier instead of the level + rhythm rules. */
+    val yamnetEnabled: StateFlow<Boolean> = _yamnetEnabled.asStateFlow()
+
     private val _clipsEnabled = MutableStateFlow(prefs.getBoolean(KEY_CLIPS_ENABLED, false))
     /** Save short audio clips of detected snores (opt-in). */
     val clipsEnabled: StateFlow<Boolean> = _clipsEnabled.asStateFlow()
@@ -92,6 +96,11 @@ class SettingsRepository(context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_CALIBRATE, enabled).apply()
     }
 
+    fun setYamnetEnabled(enabled: Boolean) {
+        _yamnetEnabled.value = enabled
+        prefs.edit().putBoolean(KEY_YAMNET_ENABLED, enabled).apply()
+    }
+
     fun setClipsEnabled(enabled: Boolean) {
         _clipsEnabled.value = enabled
         prefs.edit().putBoolean(KEY_CLIPS_ENABLED, enabled).apply()
@@ -148,6 +157,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_TREATMENT_CHOICE = "treatment_choice"
         private const val KEY_AUTO_CALIBRATE = "auto_calibrate"
         private const val KEY_CLIPS_ENABLED = "clips_enabled"
+        private const val KEY_YAMNET_ENABLED = "yamnet_enabled"
         private const val KEY_CLIP_RETENTION_DAYS = "clip_retention_days"
         private const val KEY_CLIPS_NUDGE_DISMISSED = "clips_nudge_dismissed"
         private const val KEY_START_DELAY_MIN = "start_delay_minutes"

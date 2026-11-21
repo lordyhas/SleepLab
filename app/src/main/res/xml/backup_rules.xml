@@ -2,4 +2,5 @@
 <!-- Android 11 and lower. Snore audio clips are private recordings: never back them up. -->
 <full-backup-content>
     <exclude domain="file" path="clips/" />
+    <exclude domain="file" path="detection_logs/" />
 </full-backup-content>

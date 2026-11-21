@@ -286,4 +286,7 @@
     <string name="previous_night">Nuit précédente</string>
     <string name="next_night">Nuit suivante</string>
     <string name="short_night_label">Courte</string>
+    <string name="yamnet_title">Détection IA du ronflement (YAMNet)</string>
+    <string name="yamnet_desc_on">Un modèle de reconnaissance des sons écoute toute la nuit et distingue le ronflement de la toux, du lit, de la parole et des autres bruits. Tout reste sur le téléphone. Idéal téléphone en charge.</string>
+    <string name="yamnet_desc_off">Désactivée : le ronflement est détecté par les sons forts et graves qui se répètent au rythme de la respiration.</string>
 </resources>
